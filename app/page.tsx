@@ -20,7 +20,7 @@ export default function Home() {
         <ul>
           <li>📦 <strong>Inventory tracking</strong> with batch/expiration support</li>
           <li>📖 <strong>Recipe management</strong> with cuisine, source, and technique tagging</li>
-          <li>🎯 <strong>Smart suggestions</strong> that prioritize what you have and what's expiring</li>
+          <li>🎯 <strong>Smart suggestions</strong> that prioritize what you have and what&apos;s expiring</li>
           <li>🛒 <strong>Grocery planning</strong> with ship vs. in-person separation</li>
           <li>📈 <strong>Skill growth tracking</strong> to help you become a better cook over time</li>
           <li>🌍 <strong>Cuisine variety</strong> suggestions to keep things interesting</li>

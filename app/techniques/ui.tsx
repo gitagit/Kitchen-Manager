@@ -98,7 +98,7 @@ export default function TechniquesClient() {
       <div className="card" style={{ background: "rgba(100,200,100,0.1)" }}>
         <h3>⭐ Confident ({byComfort.confident.length})</h3>
         {byComfort.confident.length === 0 ? (
-          <small className="muted">Keep practicing—you'll get here!</small>
+          <small className="muted">Keep practicing—you&apos;ll get here!</small>
         ) : (
           <div className="tech-grid">
             {byComfort.confident.map(t => (
@@ -111,7 +111,7 @@ export default function TechniquesClient() {
       <div className="card" style={{ background: "rgba(100,150,255,0.1)" }}>
         <h3>👍 Comfortable ({byComfort.comfortable.length})</h3>
         {byComfort.comfortable.length === 0 ? (
-          <small className="muted">Techniques you've gotten the hang of will appear here.</small>
+          <small className="muted">Techniques you&apos;ve gotten the hang of will appear here.</small>
         ) : (
           <div className="tech-grid">
             {byComfort.comfortable.map(t => (

@@ -166,7 +166,7 @@ export default function SuggestClient() {
         <div className="row" style={{marginTop:10}}>
           <label style={{display:"flex", alignItems:"center", gap:6}}>
             <input type="checkbox" checked={wantVariety} onChange={e=>setWantVariety(e.target.checked)} />
-            Boost variety (cuisines I haven't had lately)
+            Boost variety (cuisines I haven&apos;t had lately)
           </label>
           <label style={{display:"flex", alignItems:"center", gap:6}}>
             <input type="checkbox" checked={wantGrowth} onChange={e=>setWantGrowth(e.target.checked)} />

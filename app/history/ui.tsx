@@ -168,7 +168,7 @@ export default function HistoryClient() {
                     {renderStars(log.rating)}
                   </div>
                   <small className={log.wouldRepeat ? "" : "muted"}>
-                    {log.wouldRepeat ? "Would repeat" : "Wouldn't repeat"}
+                    {log.wouldRepeat ? "Would repeat" : "Would not repeat"}
                   </small>
                 </div>
               </div>
