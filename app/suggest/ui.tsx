@@ -230,7 +230,7 @@ export default function SuggestClient() {
 
       {logSuccess && (
         <div className="card" style={{background:"rgba(100,200,100,0.15)", marginTop:16}}>
-          Logged "{logSuccess}" to your cook history!
+          Logged &quot;{logSuccess}&quot; to your cook history!
         </div>
       )}
 

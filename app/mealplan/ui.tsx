@@ -322,7 +322,7 @@ export default function MealPlanClient() {
                         </div>
                       )}
                       {filteredRecipes.length === 0 && recipeSearch && (
-                        <div style={{ padding: "8px 12px", color: "#888" }}>No recipes match "{recipeSearch}"</div>
+                        <div style={{ padding: "8px 12px", color: "#888" }}>No recipes match &quot;{recipeSearch}&quot;</div>
                       )}
                     </div>
                   )}

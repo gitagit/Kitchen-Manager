@@ -142,7 +142,7 @@ export default function HistoryClient() {
           <div className="empty-state">
             <div className="empty-state-icon">📝</div>
             <h3>No cook history yet</h3>
-            <p>Use "I Made This" on suggestions to log your first cook!</p>
+            <p>Use &quot;I Made This&quot; on suggestions to log your first cook!</p>
           </div>
         ) : (
           <div className="empty-state">
