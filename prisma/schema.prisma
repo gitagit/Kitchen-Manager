@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============== INVENTORY ==============
+// Note: SQLite doesn't support enums, so we use String with validation in app code
+// Valid ItemCategory: PANTRY, SPICE, FROZEN, PRODUCE, MEAT, DAIRY, CONDIMENT, BAKING, BEVERAGE, OTHER
+// Valid ItemLocation: PANTRY, FRIDGE, FREEZER, COUNTER, OTHER
+// Valid GroceryChannel: SHIP, IN_PERSON, EITHER
+
+model Item {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  category        String   // PANTRY, SPICE, FROZEN, PRODUCE, MEAT, DAIRY, CONDIMENT, BAKING, BEVERAGE, OTHER
+  location        String   // PANTRY, FRIDGE, FREEZER, COUNTER, OTHER
+  staple          Boolean  @default(false)
+  parLevel        Int?
+  preferredBrand  String?
+  notes           String?
+  defaultCostCents Int?    // Default cost estimate in cents (e.g., 499 = $4.99)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  batches         ItemBatch[]
+}
+
+model ItemBatch {
+  id           String    @id @default(cuid())
+  itemId       String
+  quantityText String
+  expiresOn    DateTime?
+  purchasedOn  DateTime?
+  costCents    Int?      // Cost of this batch in cents (e.g., 599 = $5.99)
+  createdAt    DateTime  @default(now())
+
+  item         Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@index([expiresOn])
+}
+
+// ============== RECIPES ==============
+// Valid RecipeSource: PERSONAL, FAMILY, WEB, COOKBOOK, FRIEND
+// Valid Complexity: FAMILIAR, STRETCH, CHALLENGE
+
+model Recipe {
+  id            String   @id @default(cuid())
+  title         String   @unique
+  servings      Int      @default(2)
+  servingsMax   Int?
+  handsOnMin    Int      @default(15)
+  totalMin      Int      @default(30)
+  difficulty    Int      @default(2) // 1-5
+  
+  source        String   @default("PERSONAL") // PERSONAL, FAMILY, WEB, COOKBOOK, FRIEND
+  sourceRef     String?
+  
+  cuisine       String?
+  
+  equipment     String   @default("[]") // JSON array as string: ["STOVETOP","OVEN"]
+  tags          String   @default("[]") // JSON array as string: ["WEEKNIGHT","POTLUCK"]
+  seasons       String   @default("[]") // JSON array as string: ["SUMMER","FALL","WINTER","SPRING"]
+  
+  complexity    String   @default("FAMILIAR") // FAMILIAR, STRETCH, CHALLENGE
+  
+  instructions  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ingredients   RecipeIngredient[]
+  cookLogs      CookLog[]
+  techniques    RecipeTechnique[]
+}
+
+model RecipeIngredient {
+  id            String   @id @default(cuid())
+  recipeId      String
+  name          String
+  required      Boolean  @default(true)
+  quantityText  String?
+  preparation   String?
+  categoryHint  String?  // Optional: PANTRY, SPICE, etc.
+  substitutions String   @default("[]") // JSON array as string: ["shallot","red onion"]
+
+  recipe        Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId])
+}
+
+// ============== COOK LOGS ==============
+
+model CookLog {
+  id          String   @id @default(cuid())
+  recipeId    String
+  cookedOn    DateTime @default(now())
+  rating      Int      // 1-5
+  notes       String?
+  wouldRepeat Boolean  @default(true)
+  servedTo    Int?
+
+  recipe      Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId])
+  @@index([cookedOn])
+}
+
+// ============== TECHNIQUE TRACKING ==============
+
+model Technique {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  difficulty  Int      @default(2) // 1-5
+  comfort     Int      @default(0) // 0=untried, 1=learning, 2=comfortable, 3=confident
+  
+  recipes     RecipeTechnique[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RecipeTechnique {
+  id          String    @id @default(cuid())
+  recipeId    String
+  techniqueId String
+  
+  recipe      Recipe    @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  technique   Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+  
+  @@unique([recipeId, techniqueId])
+  @@index([recipeId])
+  @@index([techniqueId])
+}
+
+// ============== GROCERY ==============
+
+model GroceryItem {
+  id           String   @id @default(cuid())
+  name         String
+  channel      String   // SHIP, IN_PERSON, EITHER
+  quantityText String?
+  reason       String
+  priority     Int      @default(2) // 1=need, 2=want, 3=nice-to-have
+  acquired     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+// ============== MEAL PLANNING (future) ==============
+
+model MealPlan {
+  id        String   @id @default(cuid())
+  date      DateTime
+  slot      String   // "dinner", "lunch", "breakfast"
+  recipeId  String?
+  notes     String?
+  servings  Int?     // Custom servings for this meal
+
+  createdAt DateTime @default(now())
+
+  @@unique([date, slot])
+  @@index([date])
+}
