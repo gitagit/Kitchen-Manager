@@ -124,7 +124,7 @@ export default function TechniquesClient() {
       <div className="card" style={{ background: "rgba(255,200,100,0.1)" }}>
         <h3>📖 Learning ({byComfort.learning.length})</h3>
         {byComfort.learning.length === 0 ? (
-          <small className="muted">Techniques you're currently working on.</small>
+          <small className="muted">Techniques you&apos;re currently working on.</small>
         ) : (
           <div className="tech-grid">
             {byComfort.learning.map(t => (

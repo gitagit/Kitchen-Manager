@@ -7,11 +7,11 @@ export default function Home() {
       <div className="card">
         <h3>Getting Started</h3>
         <ol>
-          <li><strong><a href="/inventory">Add your inventory</a></strong> — What's in your pantry, fridge, and freezer?</li>
+          <li><strong><a href="/inventory">Add your inventory</a></strong> — What&apos;s in your pantry, fridge, and freezer?</li>
           <li><strong><a href="/recipes">Add some recipes</a></strong> — Start with your go-to weeknight meals</li>
           <li><strong><a href="/suggest">Get suggestions</a></strong> — Find what to cook based on what you have</li>
           <li><strong><a href="/grocery">Plan groceries</a></strong> — Generate shopping lists for planned meals</li>
-          <li><strong><a href="/techniques">Track your skills</a></strong> — Monitor techniques you're learning</li>
+          <li><strong><a href="/techniques">Track your skills</a></strong> — Monitor techniques you&apos;re learning</li>
         </ol>
       </div>
 
