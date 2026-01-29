@@ -86,9 +86,9 @@ export async function POST(req: Request) {
       handsOnMin: r.handsOnMin ?? undefined,
       totalMin: r.totalMin ?? undefined,
       difficulty: r.difficulty ?? undefined,
-      equipment: r.equipment ?? undefined,
-      tags: r.tags ?? undefined,
-      seasons: r.seasons ?? undefined,
+      equipment: r.equipment ? JSON.stringify(r.equipment) : undefined,
+      tags: r.tags ? JSON.stringify(r.tags) : undefined,
+      seasons: r.seasons ? JSON.stringify(r.seasons) : undefined,
       instructions: r.instructions,
       source: r.source ?? undefined,
       sourceRef: r.sourceRef ?? undefined,
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
           required: i.required ?? true,
           quantityText: i.quantityText ?? null,
           preparation: i.preparation ?? null,
-          substitutions: i.substitutions ?? []
+          substitutions: i.substitutions ? JSON.stringify(i.substitutions) : "[]"
         }))
       },
       techniques: {
@@ -116,9 +116,9 @@ export async function POST(req: Request) {
       handsOnMin: r.handsOnMin ?? 15,
       totalMin: r.totalMin ?? 30,
       difficulty: r.difficulty ?? 2,
-      equipment: r.equipment ?? [],
-      tags: r.tags ?? [],
-      seasons: r.seasons ?? [],
+      equipment: r.equipment ? JSON.stringify(r.equipment) : "[]",
+      tags: r.tags ? JSON.stringify(r.tags) : "[]",
+      seasons: r.seasons ? JSON.stringify(r.seasons) : "[]",
       instructions: r.instructions,
       source: r.source ?? "PERSONAL",
       sourceRef: r.sourceRef ?? null,
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
           required: i.required ?? true,
           quantityText: i.quantityText ?? null,
           preparation: i.preparation ?? null,
-          substitutions: i.substitutions ?? []
+          substitutions: i.substitutions ? JSON.stringify(i.substitutions) : "[]"
         }))
       },
       techniques: {
@@ -177,9 +177,9 @@ export async function PUT(req: Request) {
       handsOnMin: r.handsOnMin ?? undefined,
       totalMin: r.totalMin ?? undefined,
       difficulty: r.difficulty ?? undefined,
-      equipment: r.equipment ?? undefined,
-      tags: r.tags ?? undefined,
-      seasons: r.seasons ?? undefined,
+      equipment: r.equipment ? JSON.stringify(r.equipment) : undefined,
+      tags: r.tags ? JSON.stringify(r.tags) : undefined,
+      seasons: r.seasons ? JSON.stringify(r.seasons) : undefined,
       instructions: r.instructions,
       source: r.source ?? undefined,
       sourceRef: r.sourceRef ?? undefined,
@@ -192,7 +192,7 @@ export async function PUT(req: Request) {
           required: i.required ?? true,
           quantityText: i.quantityText ?? null,
           preparation: i.preparation ?? null,
-          substitutions: i.substitutions ?? []
+          substitutions: i.substitutions ? JSON.stringify(i.substitutions) : "[]"
         }))
       },
       techniques: {
