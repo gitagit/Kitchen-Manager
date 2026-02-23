@@ -47,6 +47,8 @@ nav a:hover { background: rgba(127,127,127,.15); opacity: 1; }
 /* Form elements */
 input, select, textarea, button { padding: 8px; border-radius: 8px; border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; box-sizing: border-box; transition: border-color 0.15s, box-shadow 0.15s; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(74, 144, 217, 0.2); }
+select { background: var(--card-bg); color: var(--fg); }
+select option { background: var(--card-bg); color: var(--fg); }
 button { cursor: pointer; }
 button:hover { background: rgba(127,127,127,.1); }
 button:active { background: rgba(127,127,127,.2); }

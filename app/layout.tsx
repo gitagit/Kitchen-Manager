@@ -28,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <NavLink href="/history">History</NavLink>
           <NavLink href="/techniques">Skills</NavLink>
           <NavLink href="/stats">Stats</NavLink>
+          <NavLink href="/preferences">Preferences</NavLink>
         </nav>
         <main>{children}</main>
       </body>

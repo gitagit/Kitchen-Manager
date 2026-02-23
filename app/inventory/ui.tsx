@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmModal, Toast } from "@/app/components/Modal";
 
 type Item = {
@@ -12,6 +12,14 @@ type Item = {
   parLevel: number | null;
   defaultCostCents: number | null;
   batches: { id: string; quantityText: string; expiresOn: string | null; purchasedOn: string | null; costCents: number | null }[];
+};
+
+type ScannedItem = {
+  name: string;
+  category: string;
+  location: string;
+  quantityText: string;
+  keep: boolean;
 };
 
 const categories = ["PANTRY","SPICE","FROZEN","PRODUCE","MEAT","DAIRY","CONDIMENT","BAKING","BEVERAGE","OTHER"];
@@ -90,6 +98,15 @@ export default function InventoryClient() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+
+  // Scan state
+  const [showScan, setShowScan] = useState(false);
+  const [scanFiles, setScanFiles] = useState<File[]>([]);
+  const [scanPreviews, setScanPreviews] = useState<string[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
+  const [addingScanned, setAddingScanned] = useState(false);
+  const scanInputRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
     setLoading(true);
@@ -182,6 +199,107 @@ export default function InventoryClient() {
     } finally {
       setImporting(false);
     }
+  }
+
+  function handleScanFiles(fileList: FileList | null) {
+    if (!fileList) return;
+    const files = Array.from(fileList).slice(0, 5);
+    // Revoke old previews
+    scanPreviews.forEach(p => URL.revokeObjectURL(p));
+    setScanFiles(files);
+    setScanPreviews(files.map(f => URL.createObjectURL(f)));
+    setScannedItems([]);
+  }
+
+  async function resizeImage(file: File, maxPx = 1024): Promise<Blob> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => resolve(blob!), "image/jpeg", 0.85);
+      };
+      img.src = url;
+    });
+  }
+
+  async function runScan() {
+    if (!scanFiles.length) return;
+    setScanning(true);
+    setScannedItems([]);
+    try {
+      const fd = new FormData();
+      for (const file of scanFiles) {
+        const resized = await resizeImage(file);
+        fd.append("images", resized, file.name.replace(/\.[^.]+$/, ".jpg"));
+      }
+      const res = await fetch("/api/inventory/capture", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        setToast({ message: data.error ?? "Scan failed", type: "error" });
+        return;
+      }
+      const items: ScannedItem[] = (data.items ?? []).map((it: any) => ({
+        name: it.name ?? "",
+        category: categories.includes(it.category) ? it.category : "OTHER",
+        location: locations.includes(it.location) ? it.location : "PANTRY",
+        quantityText: it.quantityText ?? "1",
+        keep: true
+      }));
+      setScannedItems(items);
+      if (items.length === 0) setToast({ message: "No items detected — try a clearer photo", type: "info" });
+    } catch {
+      setToast({ message: "Network error during scan", type: "error" });
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  function updateScannedItem(idx: number, patch: Partial<ScannedItem>) {
+    setScannedItems(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it));
+  }
+
+  async function addScannedItems() {
+    const toAdd = scannedItems.filter(it => it.keep && it.name.trim());
+    if (!toAdd.length) return;
+    setAddingScanned(true);
+    try {
+      let added = 0;
+      for (const it of toAdd) {
+        const res = await fetch("/api/inventory/items", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            item: { name: it.name.trim(), category: it.category, location: it.location },
+            batch: { quantityText: it.quantityText }
+          })
+        });
+        if (res.ok) added++;
+      }
+      setToast({ message: `Added ${added} item${added !== 1 ? "s" : ""} to inventory`, type: "success" });
+      setScannedItems([]);
+      setScanFiles([]);
+      setScanPreviews([]);
+      setShowScan(false);
+      await refresh();
+    } catch {
+      setToast({ message: "Failed to save scanned items", type: "error" });
+    } finally {
+      setAddingScanned(false);
+    }
+  }
+
+  function clearScan() {
+    scanPreviews.forEach(p => URL.revokeObjectURL(p));
+    setScanFiles([]);
+    setScanPreviews([]);
+    setScannedItems([]);
+    if (scanInputRef.current) scanInputRef.current.value = "";
   }
 
   function promptDelete(id: string, itemName: string) {
@@ -295,6 +413,139 @@ Freezer:
             <div className="row" style={{marginTop:8}}>
               <button onClick={runImport} disabled={importing}>{importing ? "Importing..." : "Import"}</button>
             </div>
+          </>
+        )}
+      </div>
+
+      <div className="card">
+        <h3
+          className="collapsible-header"
+          onClick={() => { setShowScan(!showScan); if (showScan) clearScan(); }}
+        >
+          <span className={`collapse-icon ${showScan ? "open" : ""}`}>▶</span>
+          Scan Photos
+        </h3>
+
+        {showScan && (
+          <>
+            <p style={{marginTop:8}}><small className="muted">
+              Take a photo of your fridge, pantry, or counter. Claude will identify items and let you review before adding.
+              Works best with clear, well-lit shots. Max 5 photos.
+            </small></p>
+
+            <div className="row" style={{marginTop:10}}>
+              <label style={{
+                display:"inline-flex", alignItems:"center", gap:8,
+                padding:"8px 16px", cursor:"pointer",
+                border:"1px solid rgba(127,127,127,0.3)", borderRadius:6
+              }}>
+                📷 Choose Photo{scanFiles.length > 1 ? "s" : ""}
+                <input
+                  ref={scanInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style={{display:"none"}}
+                  onChange={e => handleScanFiles(e.target.files)}
+                />
+              </label>
+              {scanFiles.length > 0 && (
+                <button onClick={clearScan} style={{color:"#888"}}>Clear</button>
+              )}
+            </div>
+
+            {scanPreviews.length > 0 && (
+              <div style={{display:"flex", flexWrap:"wrap", gap:8, marginTop:12}}>
+                {scanPreviews.map((src, i) => (
+                  <img
+                    key={i}
+                    src={src}
+                    alt={`scan ${i+1}`}
+                    style={{width:100, height:100, objectFit:"cover", borderRadius:6, border:"1px solid rgba(127,127,127,0.2)"}}
+                  />
+                ))}
+              </div>
+            )}
+
+            {scanFiles.length > 0 && scannedItems.length === 0 && (
+              <div className="row" style={{marginTop:12}}>
+                <button
+                  onClick={runScan}
+                  disabled={scanning}
+                  style={{padding:"8px 20px", fontWeight:500, background:"rgba(100,150,255,0.15)", border:"1px solid rgba(100,150,255,0.4)"}}
+                >
+                  {scanning ? "Scanning..." : "✨ Identify Items"}
+                </button>
+              </div>
+            )}
+
+            {scannedItems.length > 0 && (
+              <>
+                <p style={{marginTop:16, marginBottom:8}}>
+                  <small className="muted">
+                    Found {scannedItems.length} item{scannedItems.length !== 1 ? "s" : ""}. Uncheck any you want to skip, then edit names or quantities as needed.
+                  </small>
+                </p>
+                <div style={{display:"flex", flexDirection:"column", gap:6}}>
+                  {scannedItems.map((it, idx) => (
+                    <div key={idx} style={{
+                      display:"flex", flexWrap:"wrap", alignItems:"center", gap:6,
+                      padding:"8px 10px", borderRadius:6,
+                      background: it.keep ? "rgba(127,127,127,0.06)" : "rgba(127,127,127,0.03)",
+                      opacity: it.keep ? 1 : 0.45
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={it.keep}
+                        onChange={e => updateScannedItem(idx, { keep: e.target.checked })}
+                        style={{flexShrink:0}}
+                      />
+                      <input
+                        value={it.name}
+                        onChange={e => updateScannedItem(idx, { name: e.target.value })}
+                        style={{flex:"1 1 140px", minWidth:120}}
+                        placeholder="item name"
+                      />
+                      <input
+                        value={it.quantityText}
+                        onChange={e => updateScannedItem(idx, { quantityText: e.target.value })}
+                        style={{width:100}}
+                        placeholder="qty"
+                      />
+                      <select
+                        value={it.category}
+                        onChange={e => updateScannedItem(idx, { category: e.target.value })}
+                        style={{flex:"0 0 auto"}}
+                      >
+                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <select
+                        value={it.location}
+                        onChange={e => updateScannedItem(idx, { location: e.target.value })}
+                        style={{flex:"0 0 auto"}}
+                      >
+                        {locations.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <div className="row" style={{marginTop:12}}>
+                  <button
+                    onClick={addScannedItems}
+                    disabled={addingScanned || scannedItems.filter(it => it.keep).length === 0}
+                    style={{padding:"8px 20px", fontWeight:500}}
+                  >
+                    {addingScanned
+                      ? "Adding..."
+                      : `Add ${scannedItems.filter(it => it.keep).length} item${scannedItems.filter(it => it.keep).length !== 1 ? "s" : ""} to Inventory`
+                    }
+                  </button>
+                  <button onClick={runScan} disabled={scanning} style={{color:"#888"}}>
+                    {scanning ? "Scanning..." : "Re-scan"}
+                  </button>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>

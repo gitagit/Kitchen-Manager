@@ -150,6 +150,31 @@ model GroceryItem {
   createdAt    DateTime @default(now())
 }
 
+// ============== USER PREFERENCES ==============
+
+model UserPreferences {
+  id                 String   @id @default(cuid())
+  // Equipment (JSON string array, e.g. ["OVEN","STOVETOP"])
+  equipment          String   @default("[\"OVEN\",\"STOVETOP\"]")
+  // Time & servings
+  defaultServings    Int      @default(2)
+  defaultMaxTimeMin  Int      @default(45)
+  // Dietary restrictions (JSON string array of tags to always exclude)
+  dietaryTagsExclude String   @default("[]")
+  // Cuisine & complexity
+  cuisinesExclude    String   @default("[]")
+  defaultComplexity  String   @default("ANY")
+  // Variety & growth defaults
+  wantVariety        Boolean  @default(true)
+  wantGrowth         Boolean  @default(false)
+
+  // FUTURE MULTI-USER: add userId String @unique, FK to User model
+  // Existing rows become per-user by adding userId to WHERE clauses in API
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
 // ============== MEAL PLANNING (future) ==============
 
 model MealPlan {

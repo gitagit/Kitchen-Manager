@@ -8,7 +8,7 @@ export type SuggestConstraints = {
   tagsInclude?: string[];
   tagsExclude?: string[];
   mustUse?: string[]; // ingredient names
-  occasion?: "WEEKNIGHT" | "POTLUCK" | "MEAL_PREP" | "ANY";
+  occasion?: "BREAKFAST" | "LUNCH" | "DINNER" | "SNACK" | "WEEKNIGHT" | "POTLUCK" | "MEAL_PREP" | "ANY";
   
   // New constraints
   cuisine?: string;           // filter to specific cuisine

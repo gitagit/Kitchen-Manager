@@ -11,7 +11,7 @@ const schema = z.object({
   tagsInclude: z.array(z.string()).optional(),
   tagsExclude: z.array(z.string()).optional(),
   mustUse: z.array(z.string()).optional(),
-  occasion: z.enum(["WEEKNIGHT", "POTLUCK", "MEAL_PREP", "ANY"]).optional(),
+  occasion: z.enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK", "WEEKNIGHT", "POTLUCK", "MEAL_PREP", "ANY"]).optional(),
 
   // New constraints
   cuisine: z.string().optional(),
