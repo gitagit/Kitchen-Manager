@@ -42,21 +42,31 @@ type FullRecipe = Recipe & {
 type CuisineHistory = Map<string, Date>; // cuisine -> last cooked date
 type TechniqueComfort = Map<string, number>; // technique name -> comfort level (0-3)
 
+function parseJsonArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value as string[];
+  if (typeof value === "string") {
+    try { return JSON.parse(value); } catch { return []; }
+  }
+  return [];
+}
+
 function hasTag(recipe: FullRecipe, tag: string): boolean {
-  const tags = (recipe.tags as unknown as string[]) ?? [];
+  const tags = parseJsonArray(recipe.tags);
   return tags.map(normName).includes(normName(tag));
 }
 
 function hasSeason(recipe: FullRecipe, season: string): boolean {
-  const seasons = (recipe.seasons as unknown as string[]) ?? [];
+  const seasons = parseJsonArray(recipe.seasons);
   if (seasons.length === 0) return true; // no seasons = any season
   return seasons.map(normName).includes(normName(season));
 }
 
-function hasEquipment(recipe: FullRecipe, requiredEquip: string[]): boolean {
-  if (!requiredEquip?.length) return true;
-  const equip = ((recipe.equipment as unknown as string[]) ?? []).map(normName);
-  return requiredEquip.every((e) => equip.includes(normName(e)));
+function hasEquipment(recipe: FullRecipe, userEquip: string[]): boolean {
+  if (!userEquip?.length) return true;
+  const recipeEquip = parseJsonArray(recipe.equipment).map(normName);
+  if (recipeEquip.length === 0) return true; // recipe needs no specific equipment
+  const userNorm = userEquip.map(normName);
+  return recipeEquip.every((e) => userNorm.includes(e));
 }
 
 export function scoreRecipe(
@@ -80,7 +90,7 @@ export function scoreRecipe(
       have.push(ing.name);
     } else {
       // See if any substitution exists in inventory
-      const subs = ((ing.substitutions as unknown as string[]) ?? []).filter(Boolean);
+      const subs = parseJsonArray(ing.substitutions).filter(Boolean);
       const hit = subs.find((s) => invNames.has(normName(s)));
       if (hit) {
         have.push(`${ing.name} (swap: ${hit})`);
