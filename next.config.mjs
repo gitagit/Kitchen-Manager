@@ -15,7 +15,7 @@ const nextConfig = {
           // Don't send full URL in Referer header to third parties
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           // Disable browser features the app doesn't use
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=()" },
         ],
       },
     ];
