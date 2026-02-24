@@ -1,7 +1,7 @@
 export default function Home() {
   return (
     <>
-      <h1>🍳 Kitchen Manager</h1>
+      <h1>🍳 Mise en App</h1>
       <p>Track your pantry, discover recipes, plan groceries, and grow as a cook.</p>
       
       <div className="card">

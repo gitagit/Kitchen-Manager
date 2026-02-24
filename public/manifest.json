@@ -1,6 +1,6 @@
 {
-  "name": "Kitchen Manager",
-  "short_name": "Kitchen",
+  "name": "Mise en App",
+  "short_name": "Mise en App",
   "description": "Inventory, recipes, suggestions, and grocery planning",
   "start_url": "/",
   "display": "standalone",

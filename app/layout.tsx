@@ -5,13 +5,13 @@ import ServiceWorkerRegistration from "./sw-register";
 import LogoutButton from "./LogoutButton";
 
 export const metadata: Metadata = {
-  title: "Kitchen Manager",
+  title: "Mise en App",
   description: "Inventory, recipes, suggestions, grocery planning, and skill growth",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Kitchen Manager",
+    title: "Mise en App",
   },
   icons: {
     apple: "/icons/icon.svg",
