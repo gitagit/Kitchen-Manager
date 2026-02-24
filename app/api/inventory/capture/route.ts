@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { checkAiLimit, recordAiCall, getAiLimit } from "@/lib/ai-limiter";
+import { Logger } from "next-axiom";
 
 export const maxDuration = 60; // Vision API with multiple images can take 20-60s
 
@@ -10,6 +11,8 @@ const VALID_MEDIA_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
 type ValidMediaType = typeof VALID_MEDIA_TYPES[number];
 
 export async function POST(req: Request) {
+  const log = new Logger({ source: "capture" });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = session.user;
@@ -34,6 +37,7 @@ export async function POST(req: Request) {
   if (!files.length) {
     return NextResponse.json({ error: "No images provided" }, { status: 400 });
   }
+  log.info("capture started", { workspaceId, imageCount: files.length });
   if (files.length > 5) {
     return NextResponse.json({ error: "Maximum 5 images per scan" }, { status: 400 });
   }
@@ -123,16 +127,23 @@ Be conservative — only report items you can clearly identify. Deduplicate acro
       ]
     });
   } catch (err: any) {
+    log.error("Claude API error", { workspaceId, error: err?.message });
+    await log.flush();
     return NextResponse.json({ error: err?.message ?? "Claude API error" }, { status: 502 });
   }
 
   const toolUse = message.content.find(c => c.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
+    log.error("No tool response from Claude", { workspaceId });
+    await log.flush();
     return NextResponse.json({ error: "No tool response from Claude" }, { status: 500 });
   }
 
   const result = toolUse.input as { items: unknown[] };
+  const itemCount = (result.items ?? []).length;
+  log.info("capture complete", { workspaceId, itemCount });
 
   await recordAiCall(workspaceId, "capture");
+  await log.flush();
   return NextResponse.json({ items: result.items ?? [] });
 }

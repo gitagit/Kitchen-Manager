@@ -5,6 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { checkAiLimit, recordAiCall, getAiLimit } from "@/lib/ai-limiter";
+import { Logger } from "next-axiom";
 
 export const maxDuration = 60; // AI generation can take 20-60s
 
@@ -26,6 +27,8 @@ function normalizeInstructions(raw: string): string {
 }
 
 export async function POST(req: Request) {
+  const log = new Logger({ source: "generate" });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = session.user;
@@ -137,6 +140,8 @@ Field rules:
 - ingredients[].preparation: how the ingredient should be prepped before cooking begins ("finely diced", "at room temperature", "drained and rinsed", "cut into 2cm cubes")
 - nutrition: realistic macro estimates per serving based on ingredients and portion sizes (all values are integers)`;
 
+  log.info("generate started", { workspaceId, count, constraints });
+
   const client = new Anthropic();
 
   let message;
@@ -147,6 +152,8 @@ Field rules:
       messages: [{ role: "user", content: prompt }]
     });
   } catch (err: any) {
+    log.error("Claude API error", { workspaceId, error: err?.message });
+    await log.flush();
     return NextResponse.json({ error: err?.message ?? "Claude API error" }, { status: 502 });
   }
 
@@ -169,6 +176,8 @@ Field rules:
   try {
     result = JSON.parse(jsonText);
   } catch {
+    log.error("JSON parse failed", { workspaceId, rawResponse: jsonText.slice(0, 500) });
+    await log.flush();
     return NextResponse.json({ error: "Failed to parse Claude response as JSON" }, { status: 500 });
   }
 
@@ -186,6 +195,8 @@ Field rules:
     };
   });
 
+  log.info("generate complete", { workspaceId, recipeCount: recipes.length });
   await recordAiCall(workspaceId, "generate");
+  await log.flush();
   return NextResponse.json({ recipes });
 }
