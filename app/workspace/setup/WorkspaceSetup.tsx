@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 export default function WorkspaceSetup() {
   const [tab, setTab] = useState<"create" | "join">("create");
@@ -11,6 +12,7 @@ export default function WorkspaceSetup() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { update } = useSession();
 
   // Pre-fill code from URL if user came via /join?code=xxx
   useState(() => {
@@ -36,8 +38,8 @@ export default function WorkspaceSetup() {
       setError(data.error ?? "Failed to create workspace");
       return;
     }
+    await update();
     router.push("/");
-    router.refresh();
   }
 
   async function joinWorkspace(e: React.FormEvent) {
@@ -55,8 +57,8 @@ export default function WorkspaceSetup() {
       setError(data.error ?? "Failed to join workspace");
       return;
     }
+    await update();
     router.push("/");
-    router.refresh();
   }
 
   return (
