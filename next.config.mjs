@@ -1,3 +1,4 @@
+// next-axiom reads AXIOM_TOKEN + AXIOM_DATASET from env automatically
 import { withAxiom } from "next-axiom";
 
 /** @type {import('next').NextConfig} */
