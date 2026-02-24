@@ -204,6 +204,18 @@ export default function InventoryClient() {
   function handleScanFiles(fileList: FileList | null) {
     if (!fileList) return;
     const files = Array.from(fileList).slice(0, 5);
+
+    const heicFiles = files.filter(f =>
+      f.type === "image/heic" || f.type === "image/heif" ||
+      /\.heic$/i.test(f.name) || /\.heif$/i.test(f.name)
+    );
+    if (heicFiles.length > 0) {
+      setToast({
+        message: "HEIC photo detected. Most browsers convert this automatically — if scanning fails, open the photo and re-save as JPEG first.",
+        type: "info"
+      });
+    }
+
     // Revoke old previews
     scanPreviews.forEach(p => URL.revokeObjectURL(p));
     setScanFiles(files);
@@ -211,8 +223,8 @@ export default function InventoryClient() {
     setScannedItems([]);
   }
 
-  async function resizeImage(file: File, maxPx = 1024): Promise<Blob> {
-    return new Promise((resolve) => {
+  async function resizeImage(file: File, maxPx = 1600): Promise<Blob> {
+    return new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
       img.onload = () => {
@@ -222,7 +234,14 @@ export default function InventoryClient() {
         canvas.width = Math.round(img.width * scale);
         canvas.height = Math.round(img.height * scale);
         canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(blob => resolve(blob!), "image/jpeg", 0.85);
+        canvas.toBlob(blob => {
+          if (blob) resolve(blob);
+          else reject(new Error(`Failed to compress "${file.name}"`));
+        }, "image/jpeg", 0.85);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error(`"${file.name}" could not be read — if it's a HEIC file, re-save it as JPEG and try again`));
       };
       img.src = url;
     });
@@ -234,9 +253,22 @@ export default function InventoryClient() {
     setScannedItems([]);
     try {
       const fd = new FormData();
+      const skipped: string[] = [];
       for (const file of scanFiles) {
-        const resized = await resizeImage(file);
-        fd.append("images", resized, file.name.replace(/\.[^.]+$/, ".jpg"));
+        try {
+          const resized = await resizeImage(file);
+          fd.append("images", resized, file.name.replace(/\.[^.]+$/, ".jpg"));
+        } catch (err) {
+          skipped.push(file.name);
+        }
+      }
+
+      if (fd.getAll("images").length === 0) {
+        setToast({ message: `Could not process ${skipped.length === 1 ? `"${skipped[0]}"` : "any of the selected photos"}. Try re-saving as JPEG.`, type: "error" });
+        return;
+      }
+      if (skipped.length > 0) {
+        setToast({ message: `Skipped ${skipped.length} unreadable file(s), scanning the rest...`, type: "info" });
       }
       const res = await fetch("/api/inventory/capture", { method: "POST", body: fd });
       const data = await res.json();
