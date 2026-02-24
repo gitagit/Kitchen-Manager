@@ -155,10 +155,15 @@ Field rules:
     return NextResponse.json({ error: "Unexpected response type from Claude" }, { status: 500 });
   }
 
-  // Strip markdown code fences if present
+  // Strip markdown fences if present, then fall back to extracting the first {...} block
   let jsonText = content.text.trim();
-  const fenceMatch = jsonText.match(/^```(?:json)?\n?([\s\S]*?)\n?```$/);
-  if (fenceMatch) jsonText = fenceMatch[1].trim();
+  const fenceMatch = jsonText.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
+  if (fenceMatch) {
+    jsonText = fenceMatch[1].trim();
+  } else {
+    const objMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (objMatch) jsonText = objMatch[0];
+  }
 
   let result: { recipes: unknown[] };
   try {

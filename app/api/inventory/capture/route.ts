@@ -134,8 +134,14 @@ Be conservative: only list items you can clearly identify. Do not guess at blurr
   }
 
   let jsonText = content.text.trim();
-  const fenceMatch = jsonText.match(/^```(?:json)?\n?([\s\S]*?)\n?```$/);
-  if (fenceMatch) jsonText = fenceMatch[1].trim();
+  // Strip markdown fences if present, then fall back to extracting the first {...} block
+  const fenceMatch = jsonText.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
+  if (fenceMatch) {
+    jsonText = fenceMatch[1].trim();
+  } else {
+    const objMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (objMatch) jsonText = objMatch[0];
+  }
 
   let result: { items: unknown[] };
   try {
