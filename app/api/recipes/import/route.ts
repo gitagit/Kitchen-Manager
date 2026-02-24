@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+export const maxDuration = 30; // External URL fetch + parsing
+
 const ImportSchema = z.object({
   url: z.string().url()
 });

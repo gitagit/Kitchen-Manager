@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 
+export const maxDuration = 60; // AI generation can take 20-60s
+
 const schema = z.object({
   maxTotalMin: z.number().int().positive().optional(),
   equipment: z.array(z.string()).optional(),

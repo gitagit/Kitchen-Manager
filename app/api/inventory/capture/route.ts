@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
+export const maxDuration = 60; // Vision API with multiple images can take 20-60s
+
 const VALID_MEDIA_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 type ValidMediaType = typeof VALID_MEDIA_TYPES[number];
 
