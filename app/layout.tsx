@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import NavLink from "./NavLink";
 import ServiceWorkerRegistration from "./sw-register";
+import LogoutButton from "./LogoutButton";
 
 export const metadata: Metadata = {
   title: "Kitchen Manager",
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <NavLink href="/techniques">Skills</NavLink>
           <NavLink href="/stats">Stats</NavLink>
           <NavLink href="/preferences">Preferences</NavLink>
+          {process.env.SITE_SECRET && <LogoutButton />}
         </nav>
         <main>{children}</main>
       </body>
