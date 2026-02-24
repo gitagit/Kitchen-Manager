@@ -133,7 +133,10 @@ Be conservative: only list items you can clearly identify. Do not guess at blurr
     return NextResponse.json({ error: "Unexpected response type from Claude" }, { status: 500 });
   }
 
-  let jsonText = content.text.trim();
+  const raw = content.text.trim();
+  console.log("[capture] Claude raw response:", raw.slice(0, 500));
+
+  let jsonText = raw;
   // Strip markdown fences if present, then fall back to extracting the first {...} block
   const fenceMatch = jsonText.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
   if (fenceMatch) {
@@ -147,7 +150,10 @@ Be conservative: only list items you can clearly identify. Do not guess at blurr
   try {
     result = JSON.parse(jsonText);
   } catch {
-    return NextResponse.json({ error: "Failed to parse Claude response as JSON" }, { status: 500 });
+    console.error("[capture] Parse failed. Raw response:", raw);
+    return NextResponse.json({
+      error: `Claude returned unexpected response: "${raw.slice(0, 120)}${raw.length > 120 ? "…" : ""}"`
+    }, { status: 500 });
   }
 
   await recordAiCall(workspaceId, "capture");
