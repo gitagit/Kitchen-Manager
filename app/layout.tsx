@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import Link from "next/link";
 import NavLink from "./NavLink";
 import ServiceWorkerRegistration from "./sw-register";
 import LogoutButton from "./LogoutButton";
@@ -31,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ServiceWorkerRegistration />
         <nav>
-          <a href="/" style={{fontWeight:600}}>🍳 Kitchen</a>
+          <Link href="/" style={{fontWeight:600}}>🍳 Kitchen</Link>
           <NavLink href="/inventory">Inventory</NavLink>
           <NavLink href="/recipes">Recipes</NavLink>
           <NavLink href="/suggest">Suggest</NavLink>
