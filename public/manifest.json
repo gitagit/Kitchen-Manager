@@ -1,0 +1,17 @@
+{
+  "name": "Kitchen Manager",
+  "short_name": "Kitchen",
+  "description": "Inventory, recipes, suggestions, and grocery planning",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#4a90d9",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

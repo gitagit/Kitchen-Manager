@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Dark background with rounded corners -->
+  <rect width="512" height="512" rx="100" fill="#0d1117"/>
+  <!-- Pot rim -->
+  <rect x="116" y="210" width="280" height="28" rx="14" fill="#4a90d9"/>
+  <!-- Pot body -->
+  <rect x="136" y="234" width="240" height="168" rx="20" fill="#4a90d9"/>
+  <!-- Pot bottom highlight -->
+  <rect x="136" y="378" width="240" height="24" rx="12" fill="#3a7bc8"/>
+  <!-- Left handle -->
+  <rect x="72" y="218" width="52" height="20" rx="10" fill="#4a90d9"/>
+  <!-- Right handle -->
+  <rect x="388" y="218" width="52" height="20" rx="10" fill="#4a90d9"/>
+  <!-- Steam lines -->
+  <path d="M196 195 Q206 175 196 155" stroke="#58a6ff" stroke-width="9" stroke-linecap="round" fill="none"/>
+  <path d="M256 188 Q266 168 256 148" stroke="#58a6ff" stroke-width="9" stroke-linecap="round" fill="none"/>
+  <path d="M316 195 Q326 175 316 155" stroke="#58a6ff" stroke-width="9" stroke-linecap="round" fill="none"/>
+</svg>

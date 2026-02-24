@@ -1,23 +1,34 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import NavLink from "./NavLink";
+import ServiceWorkerRegistration from "./sw-register";
 
 export const metadata: Metadata = {
   title: "Kitchen Manager",
   description: "Inventory, recipes, suggestions, grocery planning, and skill growth",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Kitchen Manager",
+  },
+  icons: {
+    apple: "/icons/icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  themeColor: "#4a90d9",
 };
-
-import NavLink from "./NavLink";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <ServiceWorkerRegistration />
         <nav>
           <a href="/" style={{fontWeight:600}}>🍳 Kitchen</a>
           <NavLink href="/inventory">Inventory</NavLink>
