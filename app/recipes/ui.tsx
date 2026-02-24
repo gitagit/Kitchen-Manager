@@ -27,6 +27,17 @@ type Recipe = {
 const sources = ["PERSONAL", "FAMILY", "WEB", "COOKBOOK", "FRIEND"];
 const complexities = ["FAMILIAR", "STRETCH", "CHALLENGE"];
 
+function parseSteps(instructions: string): string[] {
+  if (!instructions?.trim()) return [];
+  const lines = instructions.split('\n').map(l => l.trim()).filter(Boolean);
+  // Numbered format: "1. Step\n2. Step"
+  if (lines.length > 1 && /^\d+\./.test(lines[0])) {
+    return lines.map(l => l.replace(/^\d+\.\s*/, ''));
+  }
+  // Fallback: double-newline paragraphs (seed/legacy format)
+  return instructions.split(/\n\n+/).map(s => s.trim()).filter(Boolean);
+}
+
 type RecipesClientProps = {
   initialSearch?: string;
 };
@@ -867,7 +878,11 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                 {r.instructions && (
                   <>
                     <h4 style={{marginTop:12, marginBottom:6}}>Instructions</h4>
-                    <pre style={{margin:0, whiteSpace:"pre-wrap"}}>{r.instructions}</pre>
+                    <ol style={{paddingLeft:20, margin:0}}>
+                      {parseSteps(r.instructions).map((step, i) => (
+                        <li key={i} style={{marginBottom:6}}>{step}</li>
+                      ))}
+                    </ol>
                   </>
                 )}
 

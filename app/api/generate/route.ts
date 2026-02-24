@@ -15,6 +15,13 @@ const schema = z.object({
   count: z.number().int().min(1).max(5).optional()
 });
 
+function normalizeInstructions(raw: string): string {
+  if (!raw?.trim()) return raw;
+  if (/^\s*1\./.test(raw)) return raw; // Already numbered
+  const steps = raw.split(/\n\n+/).map(s => s.trim()).filter(Boolean);
+  return steps.map((s, i) => `${i + 1}. ${s.replace(/^\d+\.\s*/, "")}`).join("\n");
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
   const parsed = schema.safeParse(body);
@@ -139,5 +146,12 @@ Field rules:
     return NextResponse.json({ error: "Failed to parse Claude response as JSON" }, { status: 500 });
   }
 
-  return NextResponse.json({ recipes: result.recipes ?? [] });
+  const recipes = (result.recipes ?? []).map((r: any) => ({
+    ...r,
+    instructions: typeof r.instructions === "string"
+      ? normalizeInstructions(r.instructions)
+      : r.instructions
+  }));
+
+  return NextResponse.json({ recipes });
 }

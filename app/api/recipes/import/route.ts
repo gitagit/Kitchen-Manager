@@ -1,7 +1,20 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import Anthropic from "@anthropic-ai/sdk";
 
-export const maxDuration = 30; // External URL fetch + parsing
+export const maxDuration = 45; // External URL fetch + parsing + optional Haiku normalization
+
+async function normalizeImportedInstructions(raw: string): Promise<string> {
+  if (!raw?.trim()) return raw;
+  if (/^\s*1\./.test(raw)) return raw; // Already numbered — skip the Claude call
+  const client = new Anthropic();
+  const msg = await client.messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1024,
+    messages: [{ role: "user", content: `Reformat these recipe instructions as numbered steps. Each step should start with an action verb, cover one action, and include timing/sensory cues where present. The final step must be a serving instruction. Return ONLY the numbered steps joined with single newlines (no blank lines between steps).\n\nInstructions:\n${raw}` }]
+  });
+  return (msg.content[0] as any).text.trim();
+}
 
 const ImportSchema = z.object({
   url: z.string().url()
@@ -86,6 +99,8 @@ export async function POST(req: Request) {
     if (!recipe) {
       return NextResponse.json({ error: "Could not find recipe data on this page" }, { status: 400 });
     }
+
+    recipe.instructions = await normalizeImportedInstructions(recipe.instructions);
 
     return NextResponse.json({ recipe });
   } catch (err) {
