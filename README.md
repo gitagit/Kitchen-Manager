@@ -72,6 +72,29 @@ The `/api/suggest` endpoint scores recipes based on:
 - **Technique** — Tracks difficulty and your comfort level (untried → learning → comfortable → confident)
 - **RecipeTechnique** — Links recipes to techniques they teach
 
+## Deployment
+
+Production runs on **Vercel** under the project name **`mise-en-place`** (`kitchen-mgmt.vercel.app`).
+
+To link the Vercel CLI to the correct project after a fresh clone:
+
+```bash
+vercel link --project mise-en-place
+```
+
+Do **not** run `vercel link` without `--project` — it may auto-detect an incorrect project.
+
+Required Vercel environment variables (set under project Settings → Environment Variables):
+
+| Variable | Notes |
+|----------|-------|
+| `DATABASE_URL` | Neon PostgreSQL pooled connection string |
+| `DIRECT_URL` | Neon PostgreSQL direct connection string (required by Prisma) |
+| `NEXTAUTH_SECRET` | 32-byte base64 secret (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`) |
+| `NEXTAUTH_URL` | Production base URL (e.g. `https://kitchen-mgmt.vercel.app`) |
+| `ANTHROPIC_API_KEY` | For AI generate / inventory scan features |
+| `NEXT_PUBLIC_BASE_URL` | Same as `NEXTAUTH_URL` |
+
 ## Future Ideas
 
 - Meal planning calendar
