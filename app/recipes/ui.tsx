@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ConfirmModal, Toast } from "@/app/components/Modal";
 import { normName } from "@/lib/normalize";
+import { subtractQty } from "@/lib/quantity";
 
 type Recipe = {
   id: string;
@@ -119,6 +120,19 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
   const [logNotes, setLogNotes] = useState("");
   const [logWouldRepeat, setLogWouldRepeat] = useState(true);
   const [logSaving, setLogSaving] = useState(false);
+
+  // Leftover tracking — step 2 of the cook log flow
+  type InventoryMatch = {
+    ingredientName: string;
+    recipeQty: string | null;
+    batchId: string;
+    currentQty: string;
+    estimated: string | null;
+  };
+  const [logStep, setLogStep] = useState<1 | 2>(1);
+  const [invMatches, setInvMatches] = useState<InventoryMatch[]>([]);
+  const [matchQtys, setMatchQtys] = useState<Record<string, string>>({});
+  const [invUpdating, setInvUpdating] = useState(false);
 
   // Expansion state - tracks which recipes are expanded (all collapsed by default)
   const [expandedRecipes, setExpandedRecipes] = useState<Set<string>>(new Set());
@@ -527,16 +541,27 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
     setLogRating(4);
     setLogNotes("");
     setLogWouldRepeat(true);
+    setLogStep(1);
   }
 
-  async function submitLog(recipeId: string) {
+  function closeLogForm() {
+    setLogFormRecipeId(null);
+    setLogStep(1);
+    setInvMatches([]);
+    setMatchQtys({});
+    setLogRating(4);
+    setLogNotes("");
+    setLogWouldRepeat(true);
+  }
+
+  async function submitLog(recipe: Recipe) {
     setLogSaving(true);
     try {
       const res = await fetch("/api/cooklogs", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          recipeId,
+          recipeId: recipe.id,
           rating: logRating,
           notes: logNotes.trim() || undefined,
           wouldRepeat: logWouldRepeat
@@ -544,12 +569,68 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
       });
       if (!res.ok) throw new Error("Failed to save");
       setToast({ message: "Cook logged!", type: "success" });
-      setLogFormRecipeId(null);
       await refresh();
+
+      // Fetch inventory and build matches for step 2
+      const invRes = await fetch("/api/inventory/items");
+      const { items } = await invRes.json();
+      const invMap = new Map<string, { batches: { id: string; quantityText: string }[] }>(
+        items.map((it: any) => [normName(it.name), it])
+      );
+      const scaleFactor = getScaledServings(recipe) / recipe.servings;
+
+      const matches: InventoryMatch[] = [];
+      for (const ing of recipe.ingredients.filter((i) => i.required)) {
+        const item = invMap.get(normName(ing.name));
+        if (!item || !item.batches[0]) continue;
+        const batch = item.batches[0];
+        const estimated = ing.quantityText
+          ? subtractQty(batch.quantityText, ing.quantityText, scaleFactor)
+          : null;
+        matches.push({
+          ingredientName: ing.name,
+          recipeQty: ing.quantityText,
+          batchId: batch.id,
+          currentQty: batch.quantityText,
+          estimated,
+        });
+      }
+
+      if (matches.length === 0) {
+        closeLogForm();
+        return;
+      }
+
+      const initQtys: Record<string, string> = {};
+      for (const m of matches) {
+        initQtys[m.batchId] = m.estimated ?? m.currentQty;
+      }
+      setInvMatches(matches);
+      setMatchQtys(initQtys);
+      setLogStep(2);
     } catch {
       setToast({ message: "Failed to save cook log", type: "error" });
     } finally {
       setLogSaving(false);
+    }
+  }
+
+  async function updateInventory() {
+    setInvUpdating(true);
+    try {
+      const changed = invMatches.filter(m => matchQtys[m.batchId] !== m.currentQty);
+      await Promise.all(changed.map(m =>
+        fetch("/api/inventory/batches", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ batchId: m.batchId, quantityText: matchQtys[m.batchId] })
+        })
+      ));
+    } catch {
+      setToast({ message: "Failed to update inventory", type: "error" });
+    } finally {
+      setInvUpdating(false);
+      closeLogForm();
     }
   }
 
@@ -979,32 +1060,70 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                 {/* Log a Cook */}
                 {logFormRecipeId === r.id ? (
                   <div style={{marginTop:12, padding:12, background:"rgba(127,127,127,0.08)", borderRadius:8}} onClick={e => e.stopPropagation()}>
-                    <h4 style={{margin:"0 0 10px 0"}}>Log a Cook</h4>
-                    <div style={{display:"flex", alignItems:"center", gap:4, marginBottom:8}}>
-                      <span style={{fontSize:13, marginRight:4}}>Rating:</span>
-                      {[1,2,3,4,5].map(n => (
-                        <button
-                          key={n}
-                          onClick={() => setLogRating(n)}
-                          style={{padding:"2px 2px", fontSize:20, lineHeight:1, background:"none", border:"none", cursor:"pointer", color: logRating >= n ? "#f5a623" : "rgba(127,127,127,0.3)"}}
-                        >★</button>
-                      ))}
-                    </div>
-                    <textarea
-                      rows={2}
-                      placeholder="Notes (optional) — what worked, what to change next time"
-                      value={logNotes}
-                      onChange={e => setLogNotes(e.target.value)}
-                      style={{width:"100%", marginBottom:8, boxSizing:"border-box"}}
-                    />
-                    <div className="row" style={{alignItems:"center"}}>
-                      <label style={{display:"flex", alignItems:"center", gap:6, fontSize:13, cursor:"pointer"}}>
-                        <input type="checkbox" checked={logWouldRepeat} onChange={e => setLogWouldRepeat(e.target.checked)}/>
-                        Would make again
-                      </label>
-                      <button onClick={() => submitLog(r.id)} disabled={logSaving}>{logSaving ? "Saving..." : "Save"}</button>
-                      <button onClick={() => setLogFormRecipeId(null)} style={{color:"#888"}}>Cancel</button>
-                    </div>
+                    {logStep === 1 ? (
+                      <>
+                        <h4 style={{margin:"0 0 10px 0"}}>Log a Cook</h4>
+                        <div style={{display:"flex", alignItems:"center", gap:4, marginBottom:8}}>
+                          <span style={{fontSize:13, marginRight:4}}>Rating:</span>
+                          {[1,2,3,4,5].map(n => (
+                            <button
+                              key={n}
+                              onClick={() => setLogRating(n)}
+                              style={{padding:"2px 2px", fontSize:20, lineHeight:1, background:"none", border:"none", cursor:"pointer", color: logRating >= n ? "#f5a623" : "rgba(127,127,127,0.3)"}}
+                            >★</button>
+                          ))}
+                        </div>
+                        <textarea
+                          rows={2}
+                          placeholder="Notes (optional) — what worked, what to change next time"
+                          value={logNotes}
+                          onChange={e => setLogNotes(e.target.value)}
+                          style={{width:"100%", marginBottom:8, boxSizing:"border-box"}}
+                        />
+                        <div className="row" style={{alignItems:"center"}}>
+                          <label style={{display:"flex", alignItems:"center", gap:6, fontSize:13, cursor:"pointer"}}>
+                            <input type="checkbox" checked={logWouldRepeat} onChange={e => setLogWouldRepeat(e.target.checked)}/>
+                            Would make again
+                          </label>
+                          <button onClick={() => submitLog(r)} disabled={logSaving}>{logSaving ? "Saving..." : "Save"}</button>
+                          <button onClick={closeLogForm} style={{color:"#888"}}>Cancel</button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10}}>
+                          <strong style={{fontSize:14}}>Update inventory</strong>
+                          <button onClick={closeLogForm} style={{fontSize:12, opacity:0.5, background:"none", border:"none", cursor:"pointer"}}>Skip →</button>
+                        </div>
+                        {invMatches.map(m => (
+                          <div key={m.batchId} style={{display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap"}}>
+                            <span style={{flex:1, fontSize:13, minWidth:120}}>
+                              {m.ingredientName}
+                              {m.recipeQty && <span className="muted" style={{marginLeft:4}}>({m.recipeQty} used)</span>}
+                            </span>
+                            <input
+                              value={matchQtys[m.batchId] ?? m.currentQty}
+                              onChange={e => setMatchQtys(q => ({ ...q, [m.batchId]: e.target.value }))}
+                              placeholder="remaining"
+                              style={{width:90, fontSize:13}}
+                            />
+                            <label style={{fontSize:12, whiteSpace:"nowrap", cursor:"pointer", display:"flex", alignItems:"center", gap:4}}>
+                              <input
+                                type="checkbox"
+                                checked={(matchQtys[m.batchId] ?? m.currentQty) === "0"}
+                                onChange={e => setMatchQtys(q => ({ ...q, [m.batchId]: e.target.checked ? "0" : m.currentQty }))}
+                              />
+                              none left
+                            </label>
+                          </div>
+                        ))}
+                        <div className="row" style={{marginTop:10}}>
+                          <button onClick={updateInventory} disabled={invUpdating}>
+                            {invUpdating ? "Updating..." : "Update inventory"}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div style={{marginTop:10}}>
