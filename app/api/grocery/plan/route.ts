@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { normName } from "@/lib/normalize";
 
+export async function GET() {
+  const items = await prisma.groceryItem.findMany({ orderBy: { createdAt: "desc" } });
+  return NextResponse.json({ items });
+}
+
 const schema = z.object({
   recipeIds: z.array(z.string()).optional(),
   includeStaplesBelowPar: z.boolean().optional().default(true)
