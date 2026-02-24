@@ -45,16 +45,18 @@ export async function POST(req: Request) {
     }
   }
 
-  // Clear old list for simplicity
-  await prisma.groceryItem.deleteMany({});
+  const groceryData = Array.from(needed.entries()).map(([name, meta]) => ({
+    name,
+    channel: meta.channel,
+    reason: meta.reason
+  }));
 
-  const created = await prisma.groceryItem.createMany({
-    data: Array.from(needed.entries()).map(([name, meta]) => ({
-      name,
-      channel: meta.channel,
-      reason: meta.reason
-    }))
-  });
+  await prisma.$transaction([
+    prisma.groceryItem.deleteMany({}),
+    prisma.groceryItem.createMany({ data: groceryData })
+  ]);
+
+  const created = { count: groceryData.length };
 
   const all = await prisma.groceryItem.findMany({ orderBy: { createdAt: "desc" } });
   return NextResponse.json({ created: created.count, items: all });

@@ -17,6 +17,36 @@ type ParsedRecipe = {
   sourceRef: string;
 };
 
+function validateUrl(urlStr: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(urlStr);
+  } catch {
+    return "Invalid URL format";
+  }
+
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    return "Only http and https URLs are allowed";
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  // Block loopback and private ranges
+  if (
+    hostname === "localhost" ||
+    hostname === "0.0.0.0" ||
+    hostname === "::1" ||
+    hostname === "[::1]" ||
+    /^127\./.test(hostname) ||
+    /^10\./.test(hostname) ||
+    /^192\.168\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+  ) {
+    return "Requests to private or loopback addresses are not allowed";
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
   const parsed = ImportSchema.safeParse(body);
@@ -27,9 +57,15 @@ export async function POST(req: Request) {
 
   const { url } = parsed.data;
 
+  const urlError = validateUrl(url);
+  if (urlError) {
+    return NextResponse.json({ error: urlError }, { status: 400 });
+  }
+
   try {
     // Fetch the page
     const response = await fetch(url, {
+      signal: AbortSignal.timeout(10_000),
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; KitchenManager/1.0; Recipe Import)",
         "Accept": "text/html,application/xhtml+xml"

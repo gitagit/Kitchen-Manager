@@ -13,6 +13,7 @@ type Stats = {
     avgMealsPerWeek: number;
     last30DaysMeals: number;
     currentStreak: number;
+    avgCostPerMealCents: number | null;
   };
   ratingDistribution: Record<number, number>;
   topCuisines: { cuisine: string; count: number }[];
@@ -109,6 +110,11 @@ export default function StatsClient() {
         <StatCard label="Last 30 Days" value={overview.last30DaysMeals} sub="meals cooked" />
         <StatCard label="Current Streak" value={overview.currentStreak} sub="days" />
         <StatCard label="People Served" value={overview.totalPeopleServed} sub="total" />
+        <StatCard
+          label="Avg Cost/Meal"
+          value={overview.avgCostPerMealCents != null ? `$${(overview.avgCostPerMealCents / 100).toFixed(2)}` : "—"}
+          sub="per serving"
+        />
       </div>
 
       <div className="stats-row">

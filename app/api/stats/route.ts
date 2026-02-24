@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { normName } from "@/lib/normalize";
 
 export async function GET() {
   // Fetch all cook logs with recipe info
@@ -121,6 +122,35 @@ export async function GET() {
     confident: techniques.filter(t => t.comfort === 3).length
   };
 
+  // Avg cost per meal
+  const allItems = await prisma.item.findMany({ include: { batches: true } });
+  const itemCostMap = new Map<string, number>();
+  for (const item of allItems) {
+    const cost = (item.batches[0] as any)?.costCents ?? (item as any).defaultCostCents ?? null;
+    if (cost != null) itemCostMap.set(normName(item.name), cost);
+  }
+
+  const allRecipesWithIngredients = await prisma.recipe.findMany({ include: { ingredients: true } });
+  const recipeIngMap = new Map(allRecipesWithIngredients.map(r => [r.id, r]));
+
+  let totalCostCents = 0;
+  let costedMeals = 0;
+  for (const log of cookLogs) {
+    const recipe = recipeIngMap.get(log.recipeId);
+    if (!recipe) continue;
+    let recipeCost = 0;
+    let anyMatched = false;
+    for (const ing of recipe.ingredients) {
+      const c = itemCostMap.get(normName(ing.name));
+      if (c != null) { recipeCost += c; anyMatched = true; }
+    }
+    if (anyMatched && recipe.servings > 0) {
+      totalCostCents += Math.round(recipeCost / recipe.servings);
+      costedMeals++;
+    }
+  }
+  const avgCostPerMealCents = costedMeals > 0 ? Math.round(totalCostCents / costedMeals) : null;
+
   // Recent activity (last 30 days)
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const last30Days = cookLogs.filter(log => new Date(log.cookedOn) >= thirtyDaysAgo);
@@ -157,7 +187,8 @@ export async function GET() {
       wouldRepeatPct: Math.round(wouldRepeatPct),
       avgMealsPerWeek: Math.round(avgMealsPerWeek * 10) / 10,
       last30DaysMeals: last30Days.length,
-      currentStreak
+      currentStreak,
+      avgCostPerMealCents
     },
     ratingDistribution,
     topCuisines,

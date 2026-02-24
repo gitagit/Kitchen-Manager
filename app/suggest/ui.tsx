@@ -14,6 +14,7 @@ type Result = {
   cuisine?: string;
   complexity?: string;
   techniques?: string[];
+  costPerServing?: number | null;
 };
 
 type LogForm = {
@@ -668,11 +669,14 @@ export default function SuggestClient() {
               <small className="muted">
                 Score: {r.score} • {r.why.join(" • ")}
               </small>
-              {(r.cuisine || r.complexity || r.techniques?.length) && (
+              {(r.cuisine || r.complexity || r.techniques?.length || (r.costPerServing != null && r.costPerServing > 0)) && (
                 <div style={{marginTop:4}}>
                   {r.cuisine && <span className="tag">{r.cuisine}</span>}
                   {r.complexity && <span className="tag">{r.complexity.toLowerCase()}</span>}
                   {r.techniques?.map(t => <span key={t} className="tag tech">{t}</span>)}
+                  {r.costPerServing != null && r.costPerServing > 0 && (
+                    <span className="tag cost">~${(r.costPerServing / 100).toFixed(2)}/serving</span>
+                  )}
                 </div>
               )}
             </div>
@@ -725,6 +729,9 @@ export default function SuggestClient() {
         }
         .tag.tech {
           background: rgba(100,150,255,0.2);
+        }
+        .tag.cost {
+          background: rgba(100,200,100,0.2);
         }
       `}</style>
     </>

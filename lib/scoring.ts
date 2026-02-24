@@ -26,11 +26,12 @@ export type SuggestResult = {
   missing: string[];
   swaps: Record<string, string[]>;
   why: string[];
-  
+
   // New metadata
   cuisine?: string;
   complexity?: string;
   techniques?: string[];
+  costPerServing: number | null;
 };
 
 type FullRecipe = Recipe & { 
@@ -289,7 +290,8 @@ export function scoreRecipe(
     why,
     cuisine: recipe.cuisine ?? undefined,
     complexity: recipe.complexity,
-    techniques: techniqueNames.length > 0 ? techniqueNames : undefined
+    techniques: techniqueNames.length > 0 ? techniqueNames : undefined,
+    costPerServing: null
   };
 }
 

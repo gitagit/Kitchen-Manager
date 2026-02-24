@@ -92,10 +92,29 @@ export async function POST(req: Request) {
     return true;
   });
 
+  // Build cost map from inventory items
+  const itemCostMap = new Map<string, number>();
+  for (const item of items) {
+    const cost = (item.batches[0] as any)?.costCents ?? (item as any).defaultCostCents ?? null;
+    if (cost != null) itemCostMap.set(normName(item.name), cost);
+  }
+
   const scored = filtered
     .map((r) => scoreRecipe(r as any, invNames, expiringNames, constraints, cuisineHistory, techniqueComfort))
     .sort((a, b) => b.score - a.score)
     .slice(0, 10);
 
-  return NextResponse.json({ results: scored });
+  const withCost = scored.map(r => {
+    const recipe = recipes.find(rec => rec.id === r.recipeId)!;
+    let totalCents = 0;
+    for (const ing of recipe.ingredients) {
+      totalCents += itemCostMap.get(normName(ing.name)) ?? 0;
+    }
+    const costPerServing = recipe.servings > 0
+      ? Math.round(totalCents / recipe.servings)
+      : null;
+    return { ...r, costPerServing };
+  });
+
+  return NextResponse.json({ results: withCost });
 }

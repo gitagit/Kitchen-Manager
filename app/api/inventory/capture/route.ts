@@ -20,6 +20,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Maximum 5 images per scan" }, { status: 400 });
   }
 
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+  const oversized = files.filter(f => f.size > MAX_FILE_SIZE).map(f => f.name);
+  if (oversized.length > 0) {
+    return NextResponse.json(
+      { error: `File(s) exceed the 5 MB limit: ${oversized.join(", ")}` },
+      { status: 400 }
+    );
+  }
+
   // Build image content blocks for Claude
   const imageBlocks: Anthropic.ImageBlockParam[] = [];
   for (const file of files) {
