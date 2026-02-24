@@ -20,7 +20,7 @@ type Recipe = {
   cuisine: string | null;
   complexity: string;
   ingredients: { id: string; name: string; required: boolean; quantityText: string | null; preparation: string | null; substitutions: string[] }[];
-  cookLogs: { id: string; rating: number; cookedOn: string; notes: string | null }[];
+  cookLogs: { id: string; rating: number; cookedOn: string; notes: string | null; wouldRepeat: boolean }[];
   techniques: { technique: { id: string; name: string } }[];
 };
 
@@ -91,6 +91,13 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Cook log form state (inline per recipe)
+  const [logFormRecipeId, setLogFormRecipeId] = useState<string | null>(null);
+  const [logRating, setLogRating] = useState(4);
+  const [logNotes, setLogNotes] = useState("");
+  const [logWouldRepeat, setLogWouldRepeat] = useState(true);
+  const [logSaving, setLogSaving] = useState(false);
 
   // Expansion state - tracks which recipes are expanded (all collapsed by default)
   const [expandedRecipes, setExpandedRecipes] = useState<Set<string>>(new Set());
@@ -475,6 +482,37 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
     setImportedRecipe(null);
   }
 
+  function openLogForm(recipeId: string) {
+    setLogFormRecipeId(recipeId);
+    setLogRating(4);
+    setLogNotes("");
+    setLogWouldRepeat(true);
+  }
+
+  async function submitLog(recipeId: string) {
+    setLogSaving(true);
+    try {
+      const res = await fetch("/api/cooklogs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          recipeId,
+          rating: logRating,
+          notes: logNotes.trim() || undefined,
+          wouldRepeat: logWouldRepeat
+        })
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      setToast({ message: "Cook logged!", type: "success" });
+      setLogFormRecipeId(null);
+      await refresh();
+    } catch {
+      setToast({ message: "Failed to save cook log", type: "error" });
+    } finally {
+      setLogSaving(false);
+    }
+  }
+
   return (
     <>
       {/* Import from URL */}
@@ -831,6 +869,72 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                     <h4 style={{marginTop:12, marginBottom:6}}>Instructions</h4>
                     <pre style={{margin:0, whiteSpace:"pre-wrap"}}>{r.instructions}</pre>
                   </>
+                )}
+
+                {/* Cook history */}
+                {r.cookLogs.length > 0 && (
+                  <div style={{marginTop:16}}>
+                    <h4 style={{margin:"0 0 8px 0"}}>Cook History</h4>
+                    {r.cookLogs.slice(0, 3).map(log => (
+                      <div key={log.id} style={{marginBottom:8, paddingBottom:8, borderBottom:"1px solid rgba(127,127,127,0.1)"}}>
+                        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                          <span style={{fontSize:15, letterSpacing:1}}>
+                            {"★".repeat(log.rating)}
+                            <span style={{opacity:0.25}}>{"★".repeat(5 - log.rating)}</span>
+                          </span>
+                          <span style={{fontSize:12, opacity:0.6}}>
+                            {new Date(log.cookedOn).toLocaleDateString()}
+                            {!log.wouldRepeat && <span style={{marginLeft:8, color:"#c66"}}>wouldn't repeat</span>}
+                          </span>
+                        </div>
+                        {log.notes && (
+                          <p style={{margin:"4px 0 0", fontSize:13, opacity:0.8, fontStyle:"italic"}}>"{log.notes}"</p>
+                        )}
+                      </div>
+                    ))}
+                    {r.cookLogs.length > 3 && (
+                      <small className="muted">+{r.cookLogs.length - 3} more — see History page</small>
+                    )}
+                  </div>
+                )}
+
+                {/* Log a Cook */}
+                {logFormRecipeId === r.id ? (
+                  <div style={{marginTop:12, padding:12, background:"rgba(127,127,127,0.08)", borderRadius:8}} onClick={e => e.stopPropagation()}>
+                    <h4 style={{margin:"0 0 10px 0"}}>Log a Cook</h4>
+                    <div style={{display:"flex", alignItems:"center", gap:4, marginBottom:8}}>
+                      <span style={{fontSize:13, marginRight:4}}>Rating:</span>
+                      {[1,2,3,4,5].map(n => (
+                        <button
+                          key={n}
+                          onClick={() => setLogRating(n)}
+                          style={{padding:"2px 2px", fontSize:20, lineHeight:1, background:"none", border:"none", cursor:"pointer", color: logRating >= n ? "#f5a623" : "rgba(127,127,127,0.3)"}}
+                        >★</button>
+                      ))}
+                    </div>
+                    <textarea
+                      rows={2}
+                      placeholder="Notes (optional) — what worked, what to change next time"
+                      value={logNotes}
+                      onChange={e => setLogNotes(e.target.value)}
+                      style={{width:"100%", marginBottom:8, boxSizing:"border-box"}}
+                    />
+                    <div className="row" style={{alignItems:"center"}}>
+                      <label style={{display:"flex", alignItems:"center", gap:6, fontSize:13, cursor:"pointer"}}>
+                        <input type="checkbox" checked={logWouldRepeat} onChange={e => setLogWouldRepeat(e.target.checked)}/>
+                        Would make again
+                      </label>
+                      <button onClick={() => submitLog(r.id)} disabled={logSaving}>{logSaving ? "Saving..." : "Save"}</button>
+                      <button onClick={() => setLogFormRecipeId(null)} style={{color:"#888"}}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{marginTop:10}}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openLogForm(r.id); }}
+                      style={{padding:"4px 12px", fontSize:13}}
+                    >+ Log a Cook</button>
+                  </div>
                 )}
 
                 <div className="row" style={{marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(127,127,127,0.2)"}}>
