@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const maxDuration = 60; // Vision API with multiple images can take 20-60s
 
@@ -7,6 +9,11 @@ const VALID_MEDIA_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
 type ValidMediaType = typeof VALID_MEDIA_TYPES[number];
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   let formData: FormData;
   try {
     formData = await req.formData();

@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const schema = z.object({
   recipeId: z.string().min(1),
@@ -12,12 +14,19 @@ const schema = z.object({
 });
 
 export async function GET(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const { searchParams } = new URL(req.url);
   const recipeId = searchParams.get("recipeId");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = {
+    recipe: { workspaceId }
+  };
   if (recipeId) where.recipeId = recipeId;
   if (from || to) {
     where.cookedOn = {};
@@ -39,11 +48,22 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   const data = parsed.data;
+
+  // Verify recipe belongs to this workspace before creating log
+  const recipe = await prisma.recipe.findUnique({ where: { id: data.recipeId } });
+  if (!recipe || recipe.workspaceId !== workspaceId) {
+    return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
+  }
 
   const log = await prisma.cookLog.create({
     data: {

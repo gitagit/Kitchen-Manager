@@ -1,11 +1,18 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { normName } from "@/lib/normalize";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const { id } = await params;
 
   const recipe = await prisma.recipe.findUnique({
@@ -13,12 +20,13 @@ export async function GET(
     include: { ingredients: true }
   });
 
-  if (!recipe) {
+  if (!recipe || recipe.workspaceId !== workspaceId) {
     return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
   }
 
-  // Get all inventory items for matching
+  // Get all inventory items for this workspace for matching
   const items = await prisma.item.findMany({
+    where: { workspaceId },
     include: { batches: { orderBy: { createdAt: "desc" }, take: 1 } }
   });
 

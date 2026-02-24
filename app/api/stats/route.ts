@@ -1,10 +1,18 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { normName } from "@/lib/normalize";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function GET() {
-  // Fetch all cook logs with recipe info
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
+  // Fetch all cook logs for recipes in this workspace
   const cookLogs = await prisma.cookLog.findMany({
+    where: { recipe: { workspaceId } },
     include: {
       recipe: {
         select: { id: true, title: true, cuisine: true, difficulty: true }
@@ -13,8 +21,9 @@ export async function GET() {
     orderBy: { cookedOn: "asc" }
   });
 
-  // Fetch all techniques
+  // Fetch all techniques in this workspace
   const techniques = await prisma.technique.findMany({
+    where: { workspaceId },
     include: {
       recipes: {
         include: {
@@ -28,8 +37,8 @@ export async function GET() {
     }
   });
 
-  // Fetch total recipe count
-  const totalRecipes = await prisma.recipe.count();
+  // Fetch total recipe count for this workspace
+  const totalRecipes = await prisma.recipe.count({ where: { workspaceId } });
 
   // Calculate stats
   const totalMeals = cookLogs.length;
@@ -123,14 +132,20 @@ export async function GET() {
   };
 
   // Avg cost per meal
-  const allItems = await prisma.item.findMany({ include: { batches: true } });
+  const allItems = await prisma.item.findMany({
+    where: { workspaceId },
+    include: { batches: true }
+  });
   const itemCostMap = new Map<string, number>();
   for (const item of allItems) {
     const cost = (item.batches[0] as any)?.costCents ?? (item as any).defaultCostCents ?? null;
     if (cost != null) itemCostMap.set(normName(item.name), cost);
   }
 
-  const allRecipesWithIngredients = await prisma.recipe.findMany({ include: { ingredients: true } });
+  const allRecipesWithIngredients = await prisma.recipe.findMany({
+    where: { workspaceId },
+    include: { ingredients: true }
+  });
   const recipeIngMap = new Map(allRecipesWithIngredients.map(r => [r.id, r]));
 
   let totalCostCents = 0;
@@ -196,8 +211,11 @@ export async function GET() {
     cookLogs.map(log => log.recipe?.cuisine).filter(Boolean)
   ).size;
 
-  // Gamification preference
-  const prefsRow = await prisma.userPreferences.findFirst({ select: { showGamification: true } });
+  // Gamification preference scoped to workspace
+  const prefsRow = await prisma.userPreferences.findUnique({
+    where: { workspaceId },
+    select: { showGamification: true }
+  });
   const showGamification = prefsRow?.showGamification ?? false;
 
   return NextResponse.json({

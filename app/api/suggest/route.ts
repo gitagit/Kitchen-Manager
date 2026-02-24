@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { scoreRecipe, buildCuisineHistory, buildTechniqueComfort } from "@/lib/scoring";
 import { normName } from "@/lib/normalize";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const schema = z.object({
   servings: z.number().int().positive().optional(),
@@ -23,6 +25,11 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
@@ -30,6 +37,7 @@ export async function POST(req: Request) {
   const constraints = parsed.data;
 
   const items = await prisma.item.findMany({
+    where: { workspaceId },
     include: { batches: true }
   });
 
@@ -44,8 +52,9 @@ export async function POST(req: Request) {
   );
 
   const recipes = await prisma.recipe.findMany({
-    include: { 
-      ingredients: true, 
+    where: { workspaceId },
+    include: {
+      ingredients: true,
       cookLogs: true,
       techniques: {
         include: { technique: true }
@@ -54,14 +63,14 @@ export async function POST(req: Request) {
   });
 
   // Build cuisine history for variety scoring
-  const cuisineHistory = constraints.wantVariety 
+  const cuisineHistory = constraints.wantVariety
     ? buildCuisineHistory(recipes)
     : undefined;
 
   // Build technique comfort map for growth scoring
   let techniqueComfort = undefined;
   if (constraints.wantGrowth) {
-    const techniques = await prisma.technique.findMany();
+    const techniques = await prisma.technique.findMany({ where: { workspaceId } });
     techniqueComfort = buildTechniqueComfort(techniques);
   }
 

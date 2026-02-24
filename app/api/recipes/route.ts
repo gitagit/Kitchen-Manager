@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { normName } from "@/lib/normalize";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const RecipeSchema = z.object({
   title: z.string().min(1),
@@ -23,7 +25,7 @@ const RecipeSchema = z.object({
       substitutions: z.array(z.string()).optional()
     })
   ).min(1),
-  
+
   // New fields
   source: z.enum(["PERSONAL", "FAMILY", "WEB", "COOKBOOK", "FRIEND"]).optional(),
   sourceRef: z.string().optional(),
@@ -37,7 +39,13 @@ const RecipeSchema = z.object({
 });
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const recipes = await prisma.recipe.findMany({
+    where: { workspaceId },
     orderBy: { title: "asc" },
     include: {
       ingredients: true,
@@ -62,28 +70,33 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const body = await req.json();
   const parsed = RecipeSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   const r = parsed.data;
-  
+
   // Handle techniques: find or create each one
   const techniqueConnections: { techniqueId: string }[] = [];
   if (r.techniques?.length) {
     for (const techName of r.techniques) {
       const normalized = normName(techName);
       const technique = await prisma.technique.upsert({
-        where: { name: normalized },
+        where: { workspaceId_name: { workspaceId, name: normalized } },
         update: {},
-        create: { name: normalized, comfort: 0 }
+        create: { workspaceId, name: normalized, comfort: 0 }
       });
       techniqueConnections.push({ techniqueId: technique.id });
     }
   }
 
   const created = await prisma.recipe.upsert({
-    where: { title: r.title.trim() },
+    where: { workspaceId_title: { workspaceId, title: r.title.trim() } },
     update: {
       servings: r.servings ?? undefined,
       servingsMax: r.servingsMax ?? undefined,
@@ -118,6 +131,7 @@ export async function POST(req: Request) {
       }
     },
     create: {
+      workspaceId,
       title: r.title.trim(),
       servings: r.servings ?? 2,
       servingsMax: r.servingsMax ?? null,
@@ -155,6 +169,11 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const body = await req.json();
 
   const UpdateSchema = RecipeSchema.extend({
@@ -167,12 +186,12 @@ export async function PUT(req: Request) {
 
   const { id, note, ...r } = parsed.data;
 
-  // Fetch existing recipe to detect changes
+  // Fetch existing recipe to detect changes and verify workspace ownership
   const existing = await prisma.recipe.findUnique({
     where: { id },
     include: { ingredients: true }
   });
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!existing || existing.workspaceId !== workspaceId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Handle techniques: find or create each one
   const techniqueConnections: { techniqueId: string }[] = [];
@@ -180,9 +199,9 @@ export async function PUT(req: Request) {
     for (const techName of r.techniques) {
       const normalized = normName(techName);
       const technique = await prisma.technique.upsert({
-        where: { name: normalized },
+        where: { workspaceId_name: { workspaceId, name: normalized } },
         update: {},
-        create: { name: normalized, comfort: 0 }
+        create: { workspaceId, name: normalized, comfort: 0 }
       });
       techniqueConnections.push({ techniqueId: technique.id });
     }
@@ -255,11 +274,22 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
 
   if (!id) {
     return NextResponse.json({ error: "Missing id parameter" }, { status: 400 });
+  }
+
+  // Verify the recipe belongs to this workspace before deleting
+  const existing = await prisma.recipe.findUnique({ where: { id } });
+  if (!existing || existing.workspaceId !== workspaceId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   // Delete related records first

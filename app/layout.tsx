@@ -4,6 +4,8 @@ import Link from "next/link";
 import NavLink from "./NavLink";
 import ServiceWorkerRegistration from "./sw-register";
 import LogoutButton from "./LogoutButton";
+import NextAuthSessionProvider from "./SessionProvider";
+import WorkspaceGuard from "./WorkspaceGuard";
 
 export const metadata: Metadata = {
   title: "Mise en App",
@@ -30,21 +32,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <ServiceWorkerRegistration />
-        <nav>
-          <Link href="/" style={{fontWeight:600}}>🍳 Kitchen</Link>
-          <NavLink href="/inventory">Inventory</NavLink>
-          <NavLink href="/recipes">Recipes</NavLink>
-          <NavLink href="/suggest">Suggest</NavLink>
-          <NavLink href="/grocery">Grocery</NavLink>
-          <NavLink href="/mealplan">Plan</NavLink>
-          <NavLink href="/history">History</NavLink>
-          <NavLink href="/techniques">Skills</NavLink>
-          <NavLink href="/stats">Stats</NavLink>
-          <NavLink href="/preferences">Preferences</NavLink>
-          {process.env.SITE_SECRET && <LogoutButton />}
-        </nav>
-        <main>{children}</main>
+        <NextAuthSessionProvider>
+          <WorkspaceGuard>
+            <ServiceWorkerRegistration />
+            <nav>
+              <Link href="/" style={{fontWeight:600}}>🍳 Kitchen</Link>
+              <NavLink href="/inventory">Inventory</NavLink>
+              <NavLink href="/recipes">Recipes</NavLink>
+              <NavLink href="/suggest">Suggest</NavLink>
+              <NavLink href="/grocery">Grocery</NavLink>
+              <NavLink href="/mealplan">Plan</NavLink>
+              <NavLink href="/history">History</NavLink>
+              <NavLink href="/techniques">Skills</NavLink>
+              <NavLink href="/stats">Stats</NavLink>
+              <NavLink href="/preferences">Preferences</NavLink>
+              <LogoutButton />
+            </nav>
+            <main>{children}</main>
+          </WorkspaceGuard>
+        </NextAuthSessionProvider>
       </body>
     </html>
   );

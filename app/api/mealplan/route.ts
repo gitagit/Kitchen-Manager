@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const MealPlanSchema = z.object({
   date: z.string(), // ISO date string
@@ -11,11 +13,16 @@ const MealPlanSchema = z.object({
 });
 
 export async function GET(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const { searchParams } = new URL(req.url);
   const startDate = searchParams.get("start");
   const endDate = searchParams.get("end");
 
-  const where: { date?: { gte?: Date; lte?: Date } } = {};
+  const where: { workspaceId: string; date?: { gte?: Date; lte?: Date } } = { workspaceId };
 
   if (startDate || endDate) {
     where.date = {};
@@ -32,6 +39,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const body = await req.json();
   const parsed = MealPlanSchema.safeParse(body);
 
@@ -42,10 +54,10 @@ export async function POST(req: Request) {
   const { date, slot, recipeId, notes, servings } = parsed.data;
   const dateObj = new Date(date);
 
-  // Upsert: update if exists for this date+slot, otherwise create
+  // Upsert: update if exists for this workspace+date+slot, otherwise create
   const plan = await prisma.mealPlan.upsert({
     where: {
-      date_slot: { date: dateObj, slot }
+      workspaceId_date_slot: { workspaceId, date: dateObj, slot }
     },
     update: {
       recipeId: recipeId || null,
@@ -53,6 +65,7 @@ export async function POST(req: Request) {
       servings: servings || null
     },
     create: {
+      workspaceId,
       date: dateObj,
       slot,
       recipeId: recipeId || null,
@@ -65,11 +78,22 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
 
   if (!id) {
     return NextResponse.json({ error: "Missing id parameter" }, { status: 400 });
+  }
+
+  // Verify the meal plan entry belongs to this workspace before deleting
+  const existing = await prisma.mealPlan.findUnique({ where: { id } });
+  if (!existing || existing.workspaceId !== workspaceId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   await prisma.mealPlan.delete({ where: { id } });

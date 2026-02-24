@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const maxDuration = 60; // AI generation can take 20-60s
 
@@ -23,14 +25,22 @@ function normalizeInstructions(raw: string): string {
 }
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   const constraints = parsed.data;
 
-  // Fetch current inventory
-  const items = await prisma.item.findMany({ include: { batches: true } });
+  // Fetch current inventory scoped to workspace
+  const items = await prisma.item.findMany({
+    where: { workspaceId },
+    include: { batches: true }
+  });
 
   // Build inventory description grouped by category
   const byCategory = new Map<string, string[]>();

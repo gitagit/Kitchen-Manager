@@ -1,8 +1,17 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function POST() {
-  const items = await prisma.groceryItem.findMany({ where: { acquired: false } });
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
+  const items = await prisma.groceryItem.findMany({
+    where: { acquired: false, workspaceId }
+  });
 
   if (items.length === 0) {
     return NextResponse.json({ cartUrl: null, fallbackText: null, error: "No items in list" }, { status: 400 });

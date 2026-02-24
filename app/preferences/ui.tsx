@@ -2,6 +2,18 @@
 
 import { useEffect, useState } from "react";
 
+type WorkspaceMember = {
+  id: string;
+  role: string;
+  user: { id: string; name: string | null; email: string };
+};
+
+type WorkspaceInfo = {
+  id: string;
+  name: string;
+  members: WorkspaceMember[];
+};
+
 const EQUIPMENT_OPTIONS = [
   "OVEN", "STOVETOP", "INSTANT_POT", "AIR_FRYER", "GRILL",
   "MICROWAVE", "SLOW_COOKER", "FOOD_PROCESSOR", "STAND_MIXER",
@@ -51,8 +63,26 @@ export default function PreferencesClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
+  const [inviteUrl, setInviteUrl] = useState("");
+  const [inviting, setInviting] = useState(false);
+
+  async function generateInvite() {
+    setInviting(true);
+    setInviteUrl("");
+    const res = await fetch("/api/workspace/invite", { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      setInviteUrl(data.url);
+    }
+    setInviting(false);
+  }
 
   useEffect(() => {
+    fetch("/api/workspace")
+      .then(r => r.json())
+      .then(d => setWorkspace(d.workspace ?? null))
+      .catch(() => {});
     fetch("/api/preferences")
       .then(res => res.json())
       .then((data: Prefs) => {
@@ -114,6 +144,51 @@ export default function PreferencesClient() {
 
   return (
     <div style={{ maxWidth: 640, display: "flex", flexDirection: "column", gap: 24 }}>
+
+      {/* Workspace */}
+      {workspace && (
+        <section className="card">
+          <h3 style={{ margin: "0 0 12px 0" }}>Workspace</h3>
+          <p style={{ margin: "0 0 10px 0", fontSize: 14 }}>
+            <strong>{workspace.name}</strong>
+          </p>
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ margin: "0 0 6px 0", fontSize: 13, opacity: 0.65 }}>Members</p>
+            {workspace.members.map(m => (
+              <div key={m.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4, fontSize: 13 }}>
+                <span>{m.user.name ?? m.user.email}</span>
+                {m.role === "OWNER" && (
+                  <span style={{ fontSize: 11, opacity: 0.5, padding: "1px 6px", border: "1px solid rgba(127,127,127,0.3)", borderRadius: 4 }}>
+                    owner
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          <button onClick={generateInvite} disabled={inviting} style={{ fontSize: 13 }}>
+            {inviting ? "Generating..." : "Generate invite link"}
+          </button>
+          {inviteUrl && (
+            <div style={{ marginTop: 10 }}>
+              <p style={{ margin: "0 0 4px 0", fontSize: 12, opacity: 0.65 }}>Share this link (expires in 7 days):</p>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  readOnly
+                  value={inviteUrl}
+                  style={{ flex: 1, fontSize: 12 }}
+                  onFocus={e => e.target.select()}
+                />
+                <button
+                  onClick={() => navigator.clipboard.writeText(inviteUrl)}
+                  style={{ fontSize: 12, whiteSpace: "nowrap" }}
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Kitchen Equipment */}
       <section className="card">

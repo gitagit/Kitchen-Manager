@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { normName } from "@/lib/normalize";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 function inferChannel(category: string, location?: string | null): "SHIP" | "IN_PERSON" | "EITHER" {
   if (location === "FRIDGE" || location === "FREEZER") return "IN_PERSON";
@@ -10,12 +12,20 @@ function inferChannel(category: string, location?: string | null): "SHIP" | "IN_
 }
 
 export async function POST() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const now = new Date();
   const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const eightWeeksAgo = new Date(now.getTime() - 56 * 24 * 60 * 60 * 1000);
 
-  // Build inventory set
-  const allItems = await prisma.item.findMany({ include: { batches: true } });
+  // Build inventory set scoped to workspace
+  const allItems = await prisma.item.findMany({
+    where: { workspaceId },
+    include: { batches: true }
+  });
   const inv = new Set(allItems.map(i => normName(i.name)));
 
   // Candidates map: normName -> { name, channel, reason, priority }
@@ -23,13 +33,13 @@ export async function POST() {
 
   // Signal 1: Meal plan (next 7 days), priority 1
   const plans = await prisma.mealPlan.findMany({
-    where: { date: { gte: now, lte: sevenDaysOut }, recipeId: { not: null } }
+    where: { workspaceId, date: { gte: now, lte: sevenDaysOut }, recipeId: { not: null } }
   });
   const plannedRecipeIds = [...new Set(plans.map(p => p.recipeId!).filter(Boolean))];
 
   if (plannedRecipeIds.length > 0) {
     const plannedRecipes = await prisma.recipe.findMany({
-      where: { id: { in: plannedRecipeIds } },
+      where: { id: { in: plannedRecipeIds }, workspaceId },
       include: { ingredients: true }
     });
     for (const recipe of plannedRecipes) {
@@ -55,7 +65,10 @@ export async function POST() {
 
   // Signal 2: Cook frequency (last 8 weeks, ≥2 cooks), priority 2
   const recentLogs = await prisma.cookLog.findMany({
-    where: { cookedOn: { gte: eightWeeksAgo } },
+    where: {
+      cookedOn: { gte: eightWeeksAgo },
+      recipe: { workspaceId }
+    },
     include: { recipe: { include: { ingredients: true } } }
   });
 
@@ -118,18 +131,21 @@ export async function POST() {
     }
   }
 
-  // Dedup against existing grocery list
-  const existing = await prisma.groceryItem.findMany();
-  const existingNames = new Set(existing.map(i => normName(i.name)));
+  // Dedup against existing grocery list scoped to workspace
+  const existingGrocery = await prisma.groceryItem.findMany({ where: { workspaceId } });
+  const existingNames = new Set(existingGrocery.map(i => normName(i.name)));
 
-  const toInsert = Array.from(candidates.values()).filter(
-    c => !existingNames.has(normName(c.name))
-  );
+  const toInsert = Array.from(candidates.values())
+    .filter(c => !existingNames.has(normName(c.name)))
+    .map(c => ({ ...c, workspaceId }));
 
   if (toInsert.length > 0) {
     await prisma.groceryItem.createMany({ data: toInsert });
   }
 
-  const all = await prisma.groceryItem.findMany({ orderBy: { createdAt: "desc" } });
+  const all = await prisma.groceryItem.findMany({
+    where: { workspaceId },
+    orderBy: { createdAt: "desc" }
+  });
   return NextResponse.json({ added: toInsert.length, items: all });
 }

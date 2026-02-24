@@ -8,6 +8,68 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ============== USERS & WORKSPACES ==============
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String?  // null for OAuth-only users
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships   WorkspaceMember[]
+  oauthAccounts OAuthAccount[]
+}
+
+model OAuthAccount {
+  id                String @id @default(cuid())
+  userId            String
+  provider          String  // "google", "github"
+  providerAccountId String
+
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  members   WorkspaceMember[]
+  invites   WorkspaceInvite[]
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String    @default("MEMBER") // OWNER, MEMBER
+  joinedAt    DateTime  @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model WorkspaceInvite {
+  id          String    @id @default(cuid())
+  workspaceId String
+  code        String    @unique @default(cuid())
+  createdById String    // userId of creator
+  expiresAt   DateTime
+  usedAt      DateTime?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+}
+
 // ============== INVENTORY ==============
 // Note: SQLite doesn't support enums, so we use String with validation in app code
 // Valid ItemCategory: PANTRY, SPICE, FROZEN, PRODUCE, MEAT, DAIRY, CONDIMENT, BAKING, BEVERAGE, OTHER
@@ -16,7 +78,8 @@ datasource db {
 
 model Item {
   id              String   @id @default(cuid())
-  name            String   @unique
+  workspaceId     String
+  name            String
   category        String   // PANTRY, SPICE, FROZEN, PRODUCE, MEAT, DAIRY, CONDIMENT, BAKING, BEVERAGE, OTHER
   location        String   // PANTRY, FRIDGE, FREEZER, COUNTER, OTHER
   staple          Boolean  @default(false)
@@ -29,6 +92,9 @@ model Item {
   updatedAt       DateTime @updatedAt
 
   batches         ItemBatch[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
 }
 
 model ItemBatch {
@@ -52,24 +118,25 @@ model ItemBatch {
 
 model Recipe {
   id            String   @id @default(cuid())
-  title         String   @unique
+  workspaceId   String
+  title         String
   servings      Int      @default(2)
   servingsMax   Int?
   handsOnMin    Int      @default(15)
   totalMin      Int      @default(30)
   difficulty    Int      @default(2) // 1-5
-  
+
   source        String   @default("PERSONAL") // PERSONAL, FAMILY, WEB, COOKBOOK, FRIEND
   sourceRef     String?
-  
+
   cuisine       String?
-  
+
   equipment     String   @default("[]") // JSON array as string: ["STOVETOP","OVEN"]
   tags          String   @default("[]") // JSON array as string: ["WEEKNIGHT","POTLUCK"]
   seasons       String   @default("[]") // JSON array as string: ["SUMMER","FALL","WINTER","SPRING"]
-  
+
   complexity    String   @default("FAMILIAR") // FAMILIAR, STRETCH, CHALLENGE
-  
+
   instructions  String
 
   caloriesPerServing  Int?
@@ -84,6 +151,9 @@ model Recipe {
   cookLogs      CookLog[]
   techniques    RecipeTechnique[]
   editLogs      RecipeEditLog[]
+
+  @@unique([workspaceId, title])
+  @@index([workspaceId])
 }
 
 model RecipeIngredient {
@@ -137,25 +207,29 @@ model CookLog {
 
 model Technique {
   id          String   @id @default(cuid())
-  name        String   @unique
+  workspaceId String
+  name        String
   description String?
   difficulty  Int      @default(2) // 1-5
   comfort     Int      @default(0) // 0=untried, 1=learning, 2=comfortable, 3=confident
-  
+
   recipes     RecipeTechnique[]
-  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
 }
 
 model RecipeTechnique {
   id          String    @id @default(cuid())
   recipeId    String
   techniqueId String
-  
+
   recipe      Recipe    @relation(fields: [recipeId], references: [id], onDelete: Cascade)
   technique   Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
-  
+
   @@unique([recipeId, techniqueId])
   @@index([recipeId])
   @@index([techniqueId])
@@ -165,6 +239,7 @@ model RecipeTechnique {
 
 model GroceryItem {
   id           String   @id @default(cuid())
+  workspaceId  String
   name         String
   channel      String   // SHIP, IN_PERSON, EITHER
   quantityText String?
@@ -172,12 +247,15 @@ model GroceryItem {
   priority     Int      @default(2) // 1=need, 2=want, 3=nice-to-have
   acquired     Boolean  @default(false)
   createdAt    DateTime @default(now())
+
+  @@index([workspaceId])
 }
 
 // ============== USER PREFERENCES ==============
 
 model UserPreferences {
   id                 String   @id @default(cuid())
+  workspaceId        String   @unique
   // Equipment (JSON string array, e.g. ["OVEN","STOVETOP"])
   equipment          String   @default("[\"OVEN\",\"STOVETOP\"]")
   // Time & servings
@@ -193,25 +271,23 @@ model UserPreferences {
   wantGrowth         Boolean  @default(false)
   showGamification   Boolean  @default(false)
 
-  // FUTURE MULTI-USER: add userId String @unique, FK to User model
-  // Existing rows become per-user by adding userId to WHERE clauses in API
-
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
 
-// ============== MEAL PLANNING (future) ==============
+// ============== MEAL PLANNING ==============
 
 model MealPlan {
-  id        String   @id @default(cuid())
-  date      DateTime
-  slot      String   // "dinner", "lunch", "breakfast"
-  recipeId  String?
-  notes     String?
-  servings  Int?     // Custom servings for this meal
+  id          String   @id @default(cuid())
+  workspaceId String
+  date        DateTime
+  slot        String   // "dinner", "lunch", "breakfast"
+  recipeId    String?
+  notes       String?
+  servings    Int?     // Custom servings for this meal
 
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 
-  @@unique([date, slot])
-  @@index([date])
+  @@unique([workspaceId, date, slot])
+  @@index([workspaceId, date])
 }

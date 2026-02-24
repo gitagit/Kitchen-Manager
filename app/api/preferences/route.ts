@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { UserPreferencesSchema } from "@/app/api/_shared";
-
-const SINGLETON_ID = "singleton";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const DEFAULTS = {
   equipment: ["OVEN", "STOVETOP"],
@@ -41,7 +41,12 @@ function deserialize(row: {
 }
 
 export async function GET() {
-  const row = await prisma.userPreferences.findFirst();
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
+  const row = await prisma.userPreferences.findUnique({ where: { workspaceId } });
   if (!row) {
     return NextResponse.json(DEFAULTS);
   }
@@ -49,6 +54,11 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = session.user;
+  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
   const body = await req.json();
   const parsed = UserPreferencesSchema.safeParse(body);
   if (!parsed.success) {
@@ -68,8 +78,8 @@ export async function PUT(req: Request) {
   if (data.showGamification !== undefined) fields.showGamification = data.showGamification;
 
   const row = await prisma.userPreferences.upsert({
-    where: { id: SINGLETON_ID },
-    create: { id: SINGLETON_ID, ...fields } as Parameters<typeof prisma.userPreferences.create>[0]["data"],
+    where: { workspaceId },
+    create: { workspaceId, ...fields } as Parameters<typeof prisma.userPreferences.create>[0]["data"],
     update: fields,
   });
 
