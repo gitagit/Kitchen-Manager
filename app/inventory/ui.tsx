@@ -284,17 +284,24 @@ export default function InventoryClient() {
     try {
       const fd = new FormData();
       const skipped: string[] = [];
+      const VALID = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+      const MAX = 5 * 1024 * 1024;
       for (const file of scanFiles) {
         try {
           const resized = await resizeImage(file);
           fd.append("images", resized, file.name.replace(/\.[^.]+$/, ".jpg"));
-        } catch (err) {
-          skipped.push(file.name);
+        } catch {
+          // Resize failed (e.g. HEIC on Android) — send original if the server can accept it
+          if (VALID.includes(file.type) && file.size <= MAX) {
+            fd.append("images", file, file.name);
+          } else {
+            skipped.push(file.name);
+          }
         }
       }
 
       if (fd.getAll("images").length === 0) {
-        setToast({ message: `Could not process ${skipped.length === 1 ? `"${skipped[0]}"` : "any of the selected photos"}. Try re-saving as JPEG.`, type: "error" });
+        setToast({ message: `Could not process ${skipped.length === 1 ? `"${skipped[0]}"` : "any of the selected photos"}. On iPhone, try Settings → Camera → Formats → Most Compatible to shoot in JPEG.`, type: "error" });
         return;
       }
       if (skipped.length > 0) {
