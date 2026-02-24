@@ -106,6 +106,17 @@ export async function POST(req: Request) {
 
   const withCost = scored.map(r => {
     const recipe = recipes.find(rec => rec.id === r.recipeId)!;
+
+    // Only show cost if we have coverage for at least half the required ingredients.
+    // Fewer matched ingredients means the cost figure is too misleading to display.
+    const requiredIngs = recipe.ingredients.filter(ing => ing.required);
+    const matchedCount = requiredIngs.filter(ing => itemCostMap.has(normName(ing.name))).length;
+    const coverage = requiredIngs.length > 0 ? matchedCount / requiredIngs.length : 0;
+
+    if (coverage < 0.5) {
+      return { ...r, costPerServing: null };
+    }
+
     let totalCents = 0;
     for (const ing of recipe.ingredients) {
       totalCents += itemCostMap.get(normName(ing.name)) ?? 0;

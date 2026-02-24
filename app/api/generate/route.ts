@@ -100,7 +100,14 @@ Field rules:
 - tags: WEEKNIGHT | POTLUCK | MEAL_PREP | QUICK | COMFORT | HEALTHY | VEGETARIAN | VEGAN | GLUTEN_FREE
 - seasons: SPRING | SUMMER | FALL | WINTER (all 4 if year-round)
 - difficulty: 1 (very easy) to 5 (very hard)
-- instructions: numbered steps as a single string with \\n between steps`;
+- instructions: numbered steps joined with \\n. Every step must follow this format:
+  • Start with an action verb (Heat, Add, Stir, Season, Whisk, Bake, Simmer, etc.)
+  • Cover exactly one action — split compound actions into separate steps
+  • Include heat level where applicable ("over medium-high heat", "at 400°F/200°C")
+  • Include timing and a sensory cue ("2–3 minutes, until golden brown", "until fragrant", "until a toothpick comes out clean")
+  • Do NOT include ingredient prep in steps (chopping, measuring, draining) — that belongs in the ingredient "preparation" field
+  • The final step must be a serving instruction ("Divide into bowls and garnish with...", "Serve immediately over rice", etc.)
+- ingredients[].preparation: how the ingredient should be prepped before cooking begins ("finely diced", "at room temperature", "drained and rinsed", "cut into 2cm cubes")`;
 
   const client = new Anthropic();
 
