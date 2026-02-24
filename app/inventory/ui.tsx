@@ -107,6 +107,7 @@ export default function InventoryClient() {
   const [scannedItems, setScannedItems] = useState<ScannedItem[]>([]);
   const [addingScanned, setAddingScanned] = useState(false);
   const scanInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
     setLoading(true);
@@ -223,6 +224,23 @@ export default function InventoryClient() {
     setScannedItems([]);
   }
 
+  // Adds a single camera capture to the existing batch (up to 5 total)
+  function handleCameraCapture(fileList: FileList | null) {
+    if (!fileList || !fileList[0]) return;
+    const newFile = fileList[0];
+    setScanFiles(prev => {
+      const combined = [...prev, newFile].slice(0, 5);
+      setScanPreviews(prevPreviews => [...prevPreviews, URL.createObjectURL(newFile)].slice(0, 5));
+      return combined;
+    });
+    setScannedItems([]);
+    // Reset so the same photo can be re-captured if needed
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (scanFiles.length >= 4) {
+      setToast({ message: "Maximum 5 photos reached", type: "info" });
+    }
+  }
+
   async function resizeImage(file: File, maxPx = 1600): Promise<Blob> {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -332,6 +350,7 @@ export default function InventoryClient() {
     setScanPreviews([]);
     setScannedItems([]);
     if (scanInputRef.current) scanInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   }
 
   function promptDelete(id: string, itemName: string) {
@@ -466,12 +485,29 @@ Freezer:
             </small></p>
 
             <div className="row" style={{marginTop:10}}>
+              {/* Direct camera capture — opens camera immediately, adds one photo at a time */}
               <label style={{
                 display:"inline-flex", alignItems:"center", gap:8,
                 padding:"8px 16px", cursor:"pointer",
                 border:"1px solid rgba(127,127,127,0.3)", borderRadius:6
               }}>
-                📷 Choose Photo{scanFiles.length > 1 ? "s" : ""}
+                📸 Take Photo
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  style={{display:"none"}}
+                  onChange={e => handleCameraCapture(e.target.files)}
+                />
+              </label>
+              {/* Library picker — allows selecting multiple photos at once */}
+              <label style={{
+                display:"inline-flex", alignItems:"center", gap:8,
+                padding:"8px 16px", cursor:"pointer",
+                border:"1px solid rgba(127,127,127,0.3)", borderRadius:6
+              }}>
+                🖼 Choose Photos
                 <input
                   ref={scanInputRef}
                   type="file"
