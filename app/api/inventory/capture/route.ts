@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { checkAiLimit, recordAiCall, getAiLimit } from "@/lib/ai-limiter";
 
 export const maxDuration = 60; // Vision API with multiple images can take 20-60s
 
@@ -13,6 +14,14 @@ export async function POST(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = session.user;
   if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
+  const allowed = await checkAiLimit(workspaceId, "capture");
+  if (!allowed) {
+    return NextResponse.json(
+      { error: `Daily inventory scan limit reached (${getAiLimit("capture")}/day). Try again tomorrow.` },
+      { status: 429 }
+    );
+  }
 
   let formData: FormData;
   try {
@@ -135,5 +144,6 @@ Be conservative: only list items you can clearly identify. Do not guess at blurr
     return NextResponse.json({ error: "Failed to parse Claude response as JSON" }, { status: 500 });
   }
 
+  await recordAiCall(workspaceId, "capture");
   return NextResponse.json({ items: result.items ?? [] });
 }

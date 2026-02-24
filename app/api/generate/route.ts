@@ -4,6 +4,7 @@ import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { checkAiLimit, recordAiCall, getAiLimit } from "@/lib/ai-limiter";
 
 export const maxDuration = 60; // AI generation can take 20-60s
 
@@ -29,6 +30,14 @@ export async function POST(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = session.user;
   if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+
+  const allowed = await checkAiLimit(workspaceId, "generate");
+  if (!allowed) {
+    return NextResponse.json(
+      { error: `Daily recipe generation limit reached (${getAiLimit("generate")}/day). Try again tomorrow.` },
+      { status: 429 }
+    );
+  }
 
   const body = await req.json();
   const parsed = schema.safeParse(body);
@@ -172,5 +181,6 @@ Field rules:
     };
   });
 
+  await recordAiCall(workspaceId, "generate");
   return NextResponse.json({ recipes });
 }

@@ -275,6 +275,17 @@ model UserPreferences {
   updatedAt          DateTime @updatedAt
 }
 
+// ============== AI USAGE TRACKING ==============
+
+model AiUsage {
+  id          String   @id @default(cuid())
+  workspaceId String
+  endpoint    String   // "generate" | "capture"
+  calledAt    DateTime @default(now())
+
+  @@index([workspaceId, endpoint, calledAt])
+}
+
 // ============== MEAL PLANNING ==============
 
 model MealPlan {
