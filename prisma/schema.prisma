@@ -83,6 +83,7 @@ model Recipe {
   ingredients   RecipeIngredient[]
   cookLogs      CookLog[]
   techniques    RecipeTechnique[]
+  editLogs      RecipeEditLog[]
 }
 
 model RecipeIngredient {
@@ -98,6 +99,21 @@ model RecipeIngredient {
   recipe        Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   @@index([recipeId])
+}
+
+// ============== RECIPE EDIT HISTORY ==============
+
+model RecipeEditLog {
+  id            String   @id @default(cuid())
+  recipeId      String
+  editedAt      DateTime @default(now())
+  changedFields String   @default("[]") // JSON array: ["instructions","servings","ingredients"]
+  note          String?  // Optional user-written description of what changed
+
+  recipe        Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId])
+  @@index([editedAt])
 }
 
 // ============== COOK LOGS ==============

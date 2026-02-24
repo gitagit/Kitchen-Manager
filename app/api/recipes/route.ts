@@ -158,13 +158,21 @@ export async function PUT(req: Request) {
   const body = await req.json();
 
   const UpdateSchema = RecipeSchema.extend({
-    id: z.string().min(1)
+    id: z.string().min(1),
+    note: z.string().optional(),
   });
 
   const parsed = UpdateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { id, ...r } = parsed.data;
+  const { id, note, ...r } = parsed.data;
+
+  // Fetch existing recipe to detect changes
+  const existing = await prisma.recipe.findUnique({
+    where: { id },
+    include: { ingredients: true }
+  });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Handle techniques: find or create each one
   const techniqueConnections: { techniqueId: string }[] = [];
@@ -217,6 +225,31 @@ export async function PUT(req: Request) {
       }
     }
   });
+
+  // Detect changed fields and create edit log
+  const changed: string[] = [];
+  if (existing.title !== r.title.trim()) changed.push("title");
+  if (existing.instructions !== r.instructions) changed.push("instructions");
+  if (existing.servings !== (r.servings ?? existing.servings)) changed.push("servings");
+  if (existing.totalMin !== (r.totalMin ?? existing.totalMin)) changed.push("totalMin");
+  if (existing.handsOnMin !== (r.handsOnMin ?? existing.handsOnMin)) changed.push("handsOnMin");
+  if (existing.difficulty !== (r.difficulty ?? existing.difficulty)) changed.push("difficulty");
+
+  const ingKey = (i: { name: string; quantityText?: string | null }) =>
+    `${i.name}|${i.quantityText ?? ""}`;
+  const oldIngs = existing.ingredients.map(ingKey).sort().join("\n");
+  const newIngs = r.ingredients.map(ingKey).sort().join("\n");
+  if (oldIngs !== newIngs) changed.push("ingredients");
+
+  if (changed.length > 0 || note) {
+    await prisma.recipeEditLog.create({
+      data: {
+        recipeId: id,
+        changedFields: JSON.stringify(changed),
+        note: note ?? null,
+      }
+    });
+  }
 
   return NextResponse.json({ recipe: updated });
 }

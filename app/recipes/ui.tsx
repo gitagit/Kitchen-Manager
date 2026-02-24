@@ -134,6 +134,24 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
   const [matchQtys, setMatchQtys] = useState<Record<string, string>>({});
   const [invUpdating, setInvUpdating] = useState(false);
 
+  // Edit history state
+  type EditLogEntry = {
+    id: string;
+    editedAt: string;
+    changedFields: string[];
+    note: string | null;
+  };
+  const [editNote, setEditNote] = useState("");
+  const [editHistory, setEditHistory] = useState<Record<string, EditLogEntry[]>>({});
+  const [editHistoryOpen, setEditHistoryOpen] = useState<Record<string, boolean>>({});
+
+  async function loadEditHistory(recipeId: string) {
+    if (editHistory[recipeId]) return;
+    const res = await fetch(`/api/recipes/${recipeId}/history`);
+    const { logs } = await res.json();
+    setEditHistory(h => ({ ...h, [recipeId]: logs }));
+  }
+
   // Expansion state - tracks which recipes are expanded (all collapsed by default)
   const [expandedRecipes, setExpandedRecipes] = useState<Set<string>>(new Set());
 
@@ -320,7 +338,7 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
         ? await fetch("/api/recipes", {
             method: "PUT",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id: editingId, ...recipeData })
+            body: JSON.stringify({ id: editingId, ...recipeData, note: editNote || undefined })
           })
         : await fetch("/api/recipes", {
             method: "POST",
@@ -361,6 +379,7 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
     setCuisine("");
     setComplexity("FAMILIAR");
     setTechniques("");
+    setEditNote("");
   }
 
   // Extract unique values for filter dropdowns
@@ -772,6 +791,19 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
               <textarea rows={5} style={{width:"100%"}} value={instructions} onChange={e=>setInstructions(e.target.value)} placeholder="Step 1..."/>
             </div>
 
+            {editingId && (
+              <div style={{marginTop:12}}>
+                <label style={{display:"block", marginBottom:4, fontSize:12, opacity:0.6}}>What changed? (optional)</label>
+                <textarea
+                  value={editNote}
+                  onChange={e => setEditNote(e.target.value)}
+                  placeholder="e.g. Reduced salt, added garlic"
+                  rows={2}
+                  style={{width:"100%", fontSize:13}}
+                />
+              </div>
+            )}
+
             <div className="row" style={{marginTop:12}}>
               <button onClick={addRecipe} disabled={saving || !title.trim() || !ingredientsText.trim()}>
                 {saving ? "Saving..." : editingId ? "Update Recipe" : "Save Recipe"}
@@ -1056,6 +1088,39 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                     )}
                   </div>
                 )}
+
+                {/* Edit History */}
+                <div style={{marginTop:8}}>
+                  <button
+                    onClick={() => {
+                      const open = !editHistoryOpen[r.id];
+                      setEditHistoryOpen(h => ({ ...h, [r.id]: open }));
+                      if (open) loadEditHistory(r.id);
+                    }}
+                    style={{fontSize:12, opacity:0.6, background:"none", border:"none", cursor:"pointer", padding:0}}
+                  >
+                    {editHistoryOpen[r.id] ? "▾" : "▸"} Edit history
+                  </button>
+                  {editHistoryOpen[r.id] && (
+                    <div style={{marginTop:6, fontSize:12, opacity:0.75}}>
+                      {!editHistory[r.id] ? (
+                        <span>Loading...</span>
+                      ) : editHistory[r.id].length === 0 ? (
+                        <span style={{opacity:0.5}}>No edits recorded.</span>
+                      ) : (
+                        editHistory[r.id].map(e => (
+                          <div key={e.id} style={{marginBottom:6}}>
+                            <span style={{opacity:0.5}}>{new Date(e.editedAt).toLocaleDateString()}</span>
+                            {e.changedFields.length > 0 && (
+                              <span style={{marginLeft:6}}>{e.changedFields.join(", ")}</span>
+                            )}
+                            {e.note && <div style={{marginTop:2, fontStyle:"italic"}}>{e.note}</div>}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Log a Cook */}
                 {logFormRecipeId === r.id ? (
