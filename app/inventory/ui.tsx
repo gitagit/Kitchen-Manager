@@ -569,7 +569,7 @@ Freezer:
             )}
 
             {scanFiles.length > 0 && scannedItems.length === 0 && (
-              <div className="row" style={{marginTop:12}}>
+              <div style={{marginTop:12}}>
                 <button
                   onClick={runScan}
                   disabled={scanning}
@@ -577,6 +577,25 @@ Freezer:
                 >
                   {scanning ? "Scanning..." : "✨ Identify Items"}
                 </button>
+                {scanning && (
+                  <div style={{marginTop:14}}>
+                    <div style={{
+                      height: 4, borderRadius: 2,
+                      background: "rgba(127,127,127,0.15)",
+                      overflow: "hidden",
+                    }}>
+                      <div style={{
+                        height: "100%",
+                        background: "rgba(100,150,255,0.6)",
+                        borderRadius: 2,
+                        animation: "scan-progress 25s linear forwards",
+                      }} />
+                    </div>
+                    <p style={{margin:"8px 0 0", fontSize:12, opacity:0.55}}>
+                      Analyzing photos with AI — this takes 15–30 seconds…
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
