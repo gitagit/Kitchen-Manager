@@ -46,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NavLink href="/techniques">Skills</NavLink>
               <NavLink href="/stats">Stats</NavLink>
               <NavLink href="/preferences">Preferences</NavLink>
+              <NavLink href="/welcome">Help</NavLink>
               <LogoutButton />
             </nav>
             <main>{children}</main>

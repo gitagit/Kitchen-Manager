@@ -39,7 +39,7 @@ export default function WorkspaceSetup() {
       return;
     }
     await update();
-    router.push("/");
+    router.push("/welcome");
   }
 
   async function joinWorkspace(e: React.FormEvent) {
@@ -58,7 +58,7 @@ export default function WorkspaceSetup() {
       return;
     }
     await update();
-    router.push("/");
+    router.push("/welcome");
   }
 
   return (
