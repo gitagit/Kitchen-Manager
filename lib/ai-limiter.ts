@@ -3,8 +3,8 @@ import { prisma } from "@/lib/db";
 // Per-workspace daily limits (configurable via env vars)
 // Set AI_DAILY_LIMIT_GENERATE=0 or AI_DAILY_LIMIT_CAPTURE=0 to disable that endpoint entirely
 const LIMITS = {
-  generate: parseInt(process.env.AI_DAILY_LIMIT_GENERATE ?? "10"),
-  capture:  parseInt(process.env.AI_DAILY_LIMIT_CAPTURE  ?? "20"),
+  generate: parseInt(process.env.AI_DAILY_LIMIT_GENERATE || "10"),
+  capture:  parseInt(process.env.AI_DAILY_LIMIT_CAPTURE  || "20"),
 } as const;
 
 type Endpoint = keyof typeof LIMITS;
