@@ -13,8 +13,11 @@ type Stats = {
     avgMealsPerWeek: number;
     last30DaysMeals: number;
     currentStreak: number;
+    longestStreak: number;
+    uniqueCuisinesCooked: number;
     avgCostPerMealCents: number | null;
   };
+  showGamification: boolean;
   ratingDistribution: Record<number, number>;
   topCuisines: { cuisine: string; count: number }[];
   mostCooked: { id: string; title: string; count: number; avgRating: number }[];
@@ -23,6 +26,14 @@ type Stats = {
   techniqueStats: { id: string; name: string; comfort: number; difficulty: number; recipesCount: number; timesUsed: number }[];
   comfortDistribution: { untried: number; learning: number; comfortable: number; confident: number };
 };
+
+function achievedMilestone(val: number, thresholds: [number, string][]): string | null {
+  let best: string | null = null;
+  for (const [threshold, label] of thresholds) {
+    if (val >= threshold) best = label;
+  }
+  return best;
+}
 
 const COMFORT_LABELS = ["Untried", "Learning", "Comfortable", "Confident"];
 const COMFORT_COLORS = ["#888", "#f5a623", "#7ed321", "#4a90d9"];
@@ -93,7 +104,7 @@ export default function StatsClient() {
     );
   }
 
-  const { overview, ratingDistribution, topCuisines, mostCooked, highestRated, monthlyActivity, techniqueStats, comfortDistribution } = stats;
+  const { overview, ratingDistribution, topCuisines, mostCooked, highestRated, monthlyActivity, techniqueStats, comfortDistribution, showGamification } = stats;
 
   // Format monthly activity for chart
   const sortedMonths = Object.entries(monthlyActivity).sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
@@ -116,6 +127,58 @@ export default function StatsClient() {
           sub="per serving"
         />
       </div>
+
+      {showGamification && (
+        <div className="card">
+          <h3>Cook Achievements</h3>
+          <div className="stat-grid" style={{ marginTop: 12 }}>
+            <div className="stat-card">
+              <div className="stat-value">
+                🔥 {overview.currentStreak}
+                {achievedMilestone(overview.currentStreak, [[7,"🥉"],[14,"🥈"],[30,"🥇"]]) && (
+                  <span style={{ marginLeft: 6, fontSize: 18 }}>{achievedMilestone(overview.currentStreak, [[7,"🥉"],[14,"🥈"],[30,"🥇"]])}</span>
+                )}
+              </div>
+              <div className="stat-label">Day Streak</div>
+              <div className="stat-sub">Best: {overview.longestStreak} day{overview.longestStreak !== 1 ? "s" : ""}</div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-value">
+                🍽️ {overview.totalMeals}
+                {achievedMilestone(overview.totalMeals, [[10,"⭐"],[25,"🥉"],[50,"🥈"],[100,"🥇"]]) && (
+                  <span style={{ marginLeft: 6, fontSize: 18 }}>{achievedMilestone(overview.totalMeals, [[10,"⭐"],[25,"🥉"],[50,"🥈"],[100,"🥇"]])}</span>
+                )}
+              </div>
+              <div className="stat-label">Meals Cooked</div>
+              <div className="stat-sub">Next: {[10,25,50,100,200].find(m => m > overview.totalMeals) ?? "Legend!"}</div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-value">
+                🌍 {overview.uniqueCuisinesCooked}
+                {achievedMilestone(overview.uniqueCuisinesCooked, [[5,"🥉"],[10,"🥈"],[15,"🥇"]]) && (
+                  <span style={{ marginLeft: 6, fontSize: 18 }}>{achievedMilestone(overview.uniqueCuisinesCooked, [[5,"🥉"],[10,"🥈"],[15,"🥇"]])}</span>
+                )}
+              </div>
+              <div className="stat-label">Cuisines Explored</div>
+              <div className="stat-sub">Next: {[5,10,15,20].find(m => m > overview.uniqueCuisinesCooked) ?? "World chef!"}</div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-value">⚒️ {comfortDistribution.confident}</div>
+              <div className="stat-label">Techniques Mastered</div>
+              <div className="stat-sub">{comfortDistribution.comfortable} comfortable · {comfortDistribution.learning} learning</div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-value">⭐ {overview.avgRating.toFixed(1)}</div>
+              <div className="stat-label">Avg Rating</div>
+              <div className="stat-sub">{overview.wouldRepeatPct}% would repeat</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="stats-row">
         {/* Rating Distribution */}

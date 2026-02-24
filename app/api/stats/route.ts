@@ -178,6 +178,28 @@ export async function GET() {
     }
   }
 
+  // Longest streak ever (full scan)
+  let longestStreak = 0;
+  let runLength = 0;
+  for (let i = 0; i < uniqueCookDates.length; i++) {
+    if (i === 0) { runLength = 1; continue; }
+    const prev = new Date(uniqueCookDates[i - 1]);
+    const curr = new Date(uniqueCookDates[i]);
+    const diff = (prev.getTime() - curr.getTime()) / (24 * 60 * 60 * 1000);
+    runLength = diff === 1 ? runLength + 1 : 1;
+    if (runLength > longestStreak) longestStreak = runLength;
+  }
+  if (uniqueCookDates.length > 0 && longestStreak === 0) longestStreak = 1;
+
+  // Unique cuisines ever cooked
+  const uniqueCuisinesCooked = new Set(
+    cookLogs.map(log => log.recipe?.cuisine).filter(Boolean)
+  ).size;
+
+  // Gamification preference
+  const prefsRow = await prisma.userPreferences.findFirst({ select: { showGamification: true } });
+  const showGamification = prefsRow?.showGamification ?? false;
+
   return NextResponse.json({
     overview: {
       totalMeals,
@@ -188,6 +210,8 @@ export async function GET() {
       avgMealsPerWeek: Math.round(avgMealsPerWeek * 10) / 10,
       last30DaysMeals: last30Days.length,
       currentStreak,
+      longestStreak,
+      uniqueCuisinesCooked,
       avgCostPerMealCents
     },
     ratingDistribution,
@@ -196,6 +220,7 @@ export async function GET() {
     highestRated,
     monthlyActivity,
     techniqueStats,
-    comfortDistribution
+    comfortDistribution,
+    showGamification
   });
 }

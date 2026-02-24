@@ -175,6 +175,7 @@ model UserPreferences {
   // Variety & growth defaults
   wantVariety        Boolean  @default(true)
   wantGrowth         Boolean  @default(false)
+  showGamification   Boolean  @default(false)
 
   // FUTURE MULTI-USER: add userId String @unique, FK to User model
   // Existing rows become per-user by adding userId to WHERE clauses in API

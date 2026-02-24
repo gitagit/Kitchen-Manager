@@ -31,6 +31,7 @@ type Prefs = {
   defaultComplexity: string;
   wantVariety: boolean;
   wantGrowth: boolean;
+  showGamification: boolean;
 };
 
 export default function PreferencesClient() {
@@ -43,6 +44,7 @@ export default function PreferencesClient() {
     defaultComplexity: "ANY",
     wantVariety: true,
     wantGrowth: false,
+    showGamification: false,
   });
   const [dietaryInput, setDietaryInput] = useState("");
   const [cuisineInput, setCuisineInput] = useState("");
@@ -266,6 +268,17 @@ export default function PreferencesClient() {
             <span>
               <strong>Skill growth</strong>
               <span style={{ marginLeft: 6, fontSize: 13, opacity: 0.65 }}>Suggest recipes that teach new techniques</span>
+            </span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={prefs.showGamification}
+              onChange={e => setPrefs(prev => ({ ...prev, showGamification: e.target.checked }))}
+            />
+            <span>
+              <strong>Cook achievements</strong>
+              <span style={{ marginLeft: 6, fontSize: 13, opacity: 0.65 }}>Show streak badges and milestones on the Stats page</span>
             </span>
           </label>
         </div>

@@ -43,6 +43,7 @@ export const UserPreferencesSchema = z.object({
   defaultComplexity: z.enum(["FAMILIAR", "STRETCH", "CHALLENGE", "ANY"]).optional(),
   wantVariety: z.boolean().optional(),
   wantGrowth: z.boolean().optional(),
+  showGamification: z.boolean().optional(),
 });
 
 export function cleanName(name: string): string {

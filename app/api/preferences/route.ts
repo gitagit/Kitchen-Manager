@@ -13,6 +13,7 @@ const DEFAULTS = {
   defaultComplexity: "ANY",
   wantVariety: true,
   wantGrowth: false,
+  showGamification: false,
 };
 
 function deserialize(row: {
@@ -24,6 +25,7 @@ function deserialize(row: {
   defaultComplexity: string;
   wantVariety: boolean;
   wantGrowth: boolean;
+  showGamification: boolean;
 }) {
   return {
     equipment: JSON.parse(row.equipment) as string[],
@@ -34,6 +36,7 @@ function deserialize(row: {
     defaultComplexity: row.defaultComplexity,
     wantVariety: row.wantVariety,
     wantGrowth: row.wantGrowth,
+    showGamification: row.showGamification,
   };
 }
 
@@ -62,6 +65,7 @@ export async function PUT(req: Request) {
   if (data.defaultComplexity !== undefined) fields.defaultComplexity = data.defaultComplexity;
   if (data.wantVariety !== undefined) fields.wantVariety = data.wantVariety;
   if (data.wantGrowth !== undefined) fields.wantGrowth = data.wantGrowth;
+  if (data.showGamification !== undefined) fields.showGamification = data.showGamification;
 
   const row = await prisma.userPreferences.upsert({
     where: { id: SINGLETON_ID },
