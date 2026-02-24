@@ -64,48 +64,20 @@ export async function POST(req: Request) {
     });
   }
 
-  const prompt = `You are analyzing kitchen, pantry, or refrigerator photos to extract a list of food items.
+  const prompt = `Analyze these kitchen, pantry, or refrigerator photos and identify every food item, ingredient, or pantry staple you can clearly see.
 
-Look at all provided images carefully and identify every food item, ingredient, or pantry staple you can clearly see.
-
-For each item determine:
+For each item use:
 - name: lowercase, specific (e.g. "olive oil", "canned chickpeas", "frozen peas", "sharp cheddar")
-- category: exactly one of PANTRY, SPICE, FROZEN, PRODUCE, MEAT, DAIRY, CONDIMENT, BAKING, BEVERAGE, OTHER
-- location: exactly one of PANTRY, FRIDGE, FREEZER, COUNTER, OTHER (infer from item type and image context)
-- quantityText: best estimate (e.g. "1 bottle", "2 cans", "half full", "1 bunch", "1 block")
+- category: PANTRY | SPICE | FROZEN | PRODUCE | MEAT | DAIRY | CONDIMENT | BAKING | BEVERAGE | OTHER
+  - PANTRY: canned goods, dried goods, oils, vinegar, pasta, rice, flour, sugar, nuts, broth
+  - SPICE: individual spices, herbs, seasoning blends, salt, pepper
+  - CONDIMENT: ketchup, mustard, mayo, hot sauce, soy sauce, salad dressing, jam
+  - DAIRY: milk, cheese, yogurt, butter, cream, eggs
+  - BAKING: baking powder, baking soda, yeast, chocolate chips, vanilla extract, cocoa
+- location: PANTRY | FRIDGE | FREEZER | COUNTER | OTHER (infer from context)
+- quantityText: best estimate (e.g. "1 bottle", "2 cans", "half full", "1 bunch")
 
-Category guide:
-- PANTRY: canned goods, dried goods, oils, vinegar, pasta, rice, flour, sugar, nuts, broth
-- SPICE: individual spices, herbs, seasoning blends, salt, pepper
-- FROZEN: items clearly in a freezer or frozen packaging
-- PRODUCE: fresh fruits and vegetables
-- MEAT: meat, poultry, seafood (fresh or frozen)
-- DAIRY: milk, cheese, yogurt, butter, cream, eggs
-- CONDIMENT: ketchup, mustard, mayo, hot sauce, soy sauce, salad dressing, jam
-- BAKING: baking powder, baking soda, yeast, chocolate chips, vanilla extract, cocoa
-- BEVERAGE: juice, soda, water, coffee, tea, alcohol
-- OTHER: anything that doesn't fit above
-
-Location guide:
-- PANTRY: shelf-stable items stored at room temperature
-- FRIDGE: refrigerated items
-- FREEZER: frozen items
-- COUNTER: bread, fruit bowls, items sitting out
-- OTHER: unclear
-
-Return ONLY a JSON object — no markdown, no explanation:
-{
-  "items": [
-    {
-      "name": "olive oil",
-      "category": "PANTRY",
-      "location": "PANTRY",
-      "quantityText": "1 bottle, about half full"
-    }
-  ]
-}
-
-Be conservative: only list items you can clearly identify. Do not guess at blurry or unclear items. Deduplicate across images.`;
+Be conservative — only report items you can clearly identify. Deduplicate across images.`;
 
   const client = new Anthropic();
 
@@ -114,6 +86,32 @@ Be conservative: only list items you can clearly identify. Do not guess at blurr
     message = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 2048,
+      tools: [
+        {
+          name: "report_inventory_items",
+          description: "Report all food items identified in the provided kitchen/pantry/fridge photos.",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              items: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name:         { type: "string", description: "Lowercase specific item name" },
+                    category:     { type: "string", enum: ["PANTRY","SPICE","FROZEN","PRODUCE","MEAT","DAIRY","CONDIMENT","BAKING","BEVERAGE","OTHER"] },
+                    location:     { type: "string", enum: ["PANTRY","FRIDGE","FREEZER","COUNTER","OTHER"] },
+                    quantityText: { type: "string", description: "Best estimate of quantity" }
+                  },
+                  required: ["name", "category", "location", "quantityText"]
+                }
+              }
+            },
+            required: ["items"]
+          }
+        }
+      ],
+      tool_choice: { type: "tool", name: "report_inventory_items" },
       messages: [
         {
           role: "user",
@@ -128,33 +126,12 @@ Be conservative: only list items you can clearly identify. Do not guess at blurr
     return NextResponse.json({ error: err?.message ?? "Claude API error" }, { status: 502 });
   }
 
-  const content = message.content[0];
-  if (content.type !== "text") {
-    return NextResponse.json({ error: "Unexpected response type from Claude" }, { status: 500 });
+  const toolUse = message.content.find(c => c.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    return NextResponse.json({ error: "No tool response from Claude" }, { status: 500 });
   }
 
-  const raw = content.text.trim();
-  console.log("[capture] Claude raw response:", raw.slice(0, 500));
-
-  let jsonText = raw;
-  // Strip markdown fences if present, then fall back to extracting the first {...} block
-  const fenceMatch = jsonText.match(/```(?:json)?\n?([\s\S]*?)\n?```/);
-  if (fenceMatch) {
-    jsonText = fenceMatch[1].trim();
-  } else {
-    const objMatch = jsonText.match(/\{[\s\S]*\}/);
-    if (objMatch) jsonText = objMatch[0];
-  }
-
-  let result: { items: unknown[] };
-  try {
-    result = JSON.parse(jsonText);
-  } catch {
-    console.error("[capture] Parse failed. Raw response:", raw);
-    return NextResponse.json({
-      error: `Claude returned unexpected response: "${raw.slice(0, 120)}${raw.length > 120 ? "…" : ""}"`
-    }, { status: 500 });
-  }
+  const result = toolUse.input as { items: unknown[] };
 
   await recordAiCall(workspaceId, "capture");
   return NextResponse.json({ items: result.items ?? [] });
