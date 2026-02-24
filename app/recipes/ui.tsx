@@ -22,6 +22,10 @@ type Recipe = {
   ingredients: { id: string; name: string; required: boolean; quantityText: string | null; preparation: string | null; substitutions: string[] }[];
   cookLogs: { id: string; rating: number; cookedOn: string; notes: string | null; wouldRepeat: boolean }[];
   techniques: { technique: { id: string; name: string } }[];
+  caloriesPerServing: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
 };
 
 const sources = ["PERSONAL", "FAMILY", "WEB", "COOKBOOK", "FRIEND"];
@@ -95,6 +99,10 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
     cuisine: string | null;
     source: string;
     sourceRef: string;
+    caloriesPerServing: number | null;
+    proteinG: number | null;
+    carbsG: number | null;
+    fatG: number | null;
   } | null>(null);
 
   // Modal and toast state
@@ -772,6 +780,12 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                 <small className="muted">
                   {r.totalMin}m total • {r.handsOnMin}m hands-on • serves {r.servings}{r.servingsMax ? `-${r.servingsMax}` : ""} • difficulty {r.difficulty}
                 </small>
+                {r.caloriesPerServing != null && (
+                  <div style={{marginTop:4, fontSize:13, opacity:0.75}}>
+                    ≈{r.caloriesPerServing} cal&nbsp;·&nbsp;{r.proteinG}g protein&nbsp;·&nbsp;{r.carbsG}g carbs&nbsp;·&nbsp;{r.fatG}g fat
+                    <span style={{marginLeft:6, fontSize:11, opacity:0.6}}>(per serving, AI estimate)</span>
+                  </div>
+                )}
                 <div style={{marginTop:4}}>
                   {r.cuisine && <span className="tag">{r.cuisine}</span>}
                   <span className="tag">{r.complexity.toLowerCase()}</span>

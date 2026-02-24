@@ -16,6 +16,30 @@ async function normalizeImportedInstructions(raw: string): Promise<string> {
   return (msg.content[0] as any).text.trim();
 }
 
+async function estimateNutrition(
+  title: string,
+  servings: number,
+  ingredients: { name: string; quantityText: string | null }[]
+): Promise<{ caloriesPerServing: number; proteinG: number; carbsG: number; fatG: number } | null> {
+  try {
+    const client = new Anthropic();
+    const ingList = ingredients.map(i => i.quantityText ? `${i.quantityText} ${i.name}` : i.name).join(", ");
+    const msg = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 256,
+      messages: [{
+        role: "user",
+        content: `Estimate the nutritional content per serving for this recipe. Title: "${title}". Servings: ${servings}. Ingredients: ${ingList}. Return ONLY a JSON object with integer fields: {"caloriesPerServing": number, "proteinG": number, "carbsG": number, "fatG": number}`
+      }]
+    });
+    const text = (msg.content[0] as any).text.trim();
+    const fenceMatch = text.match(/^```(?:json)?\n?([\s\S]*?)\n?```$/);
+    return JSON.parse(fenceMatch ? fenceMatch[1] : text);
+  } catch {
+    return null;
+  }
+}
+
 const ImportSchema = z.object({
   url: z.string().url()
 });
@@ -30,6 +54,10 @@ type ParsedRecipe = {
   cuisine: string | null;
   source: string;
   sourceRef: string;
+  caloriesPerServing: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
 };
 
 function validateUrl(urlStr: string): string | null {
@@ -101,6 +129,12 @@ export async function POST(req: Request) {
     }
 
     recipe.instructions = await normalizeImportedInstructions(recipe.instructions);
+
+    const nutrition = await estimateNutrition(recipe.title, recipe.servings, recipe.ingredients);
+    recipe.caloriesPerServing = nutrition?.caloriesPerServing ?? null;
+    recipe.proteinG = nutrition?.proteinG ?? null;
+    recipe.carbsG = nutrition?.carbsG ?? null;
+    recipe.fatG = nutrition?.fatG ?? null;
 
     return NextResponse.json({ recipe });
   } catch (err) {
@@ -231,7 +265,11 @@ function normalizeJsonLdRecipe(data: Record<string, unknown>, sourceUrl: string)
     instructions,
     cuisine,
     source: "WEB",
-    sourceRef: sourceUrl
+    sourceRef: sourceUrl,
+    caloriesPerServing: null,
+    proteinG: null,
+    carbsG: null,
+    fatG: null
   };
 }
 

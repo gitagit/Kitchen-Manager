@@ -47,6 +47,7 @@ export default function MealPlanClient() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
 
   // Modal state for editing a slot
   const [editingSlot, setEditingSlot] = useState<{ date: Date; slot: string } | null>(null);
@@ -163,6 +164,18 @@ export default function MealPlanClient() {
     await fetchPlans();
   }
 
+  async function sendToGrocery() {
+    const ids = [...new Set(plans.filter(p => p.recipeId).map(p => p.recipeId as string))];
+    if (!ids.length) { setToast("No recipes planned this week"); return; }
+    const res = await fetch("/api/grocery/plan", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ recipeIds: ids })
+    });
+    const data = await res.json();
+    setToast(`${data.created ?? 0} items added to grocery list`);
+  }
+
   return (
     <>
       <div className="card">
@@ -172,6 +185,15 @@ export default function MealPlanClient() {
             {weekDates[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} - {weekDates[6].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
           </h3>
           <button onClick={() => setWeekOffset(w => w + 1)}>Next Week &rarr;</button>
+        </div>
+        <div style={{ textAlign: "center", marginTop: 8 }}>
+          <button
+            onClick={sendToGrocery}
+            disabled={!plans.some(p => p.recipeId)}
+            title="Generate grocery list from this week's recipes"
+          >
+            &rarr; Grocery list
+          </button>
         </div>
         {weekOffset !== 0 && (
           <div style={{ textAlign: "center", marginTop: 8 }}>
@@ -363,6 +385,27 @@ export default function MealPlanClient() {
               <button onClick={() => setEditingSlot(null)}>Cancel</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(40,40,40,0.92)",
+            color: "#fff",
+            padding: "10px 20px",
+            borderRadius: 8,
+            fontSize: 14,
+            zIndex: 2000,
+            cursor: "pointer"
+          }}
+          onClick={() => setToast(null)}
+        >
+          {toast}
         </div>
       )}
     </>

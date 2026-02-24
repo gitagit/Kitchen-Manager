@@ -96,6 +96,7 @@ Return ONLY a JSON object with this exact structure — no markdown, no explanat
         }
       ],
       "techniques": ["sautéing", "braising"],
+      "nutrition": { "caloriesPerServing": 450, "proteinG": 32, "carbsG": 48, "fatG": 12 },
       "reasoning": "Uses most of the pantry staples you have on hand."
     }
   ]
@@ -114,7 +115,8 @@ Field rules:
   • Include timing and a sensory cue ("2–3 minutes, until golden brown", "until fragrant", "until a toothpick comes out clean")
   • Do NOT include ingredient prep in steps (chopping, measuring, draining) — that belongs in the ingredient "preparation" field
   • The final step must be a serving instruction ("Divide into bowls and garnish with...", "Serve immediately over rice", etc.)
-- ingredients[].preparation: how the ingredient should be prepped before cooking begins ("finely diced", "at room temperature", "drained and rinsed", "cut into 2cm cubes")`;
+- ingredients[].preparation: how the ingredient should be prepped before cooking begins ("finely diced", "at room temperature", "drained and rinsed", "cut into 2cm cubes")
+- nutrition: realistic macro estimates per serving based on ingredients and portion sizes (all values are integers)`;
 
   const client = new Anthropic();
 
@@ -146,12 +148,19 @@ Field rules:
     return NextResponse.json({ error: "Failed to parse Claude response as JSON" }, { status: 500 });
   }
 
-  const recipes = (result.recipes ?? []).map((r: any) => ({
-    ...r,
-    instructions: typeof r.instructions === "string"
-      ? normalizeInstructions(r.instructions)
-      : r.instructions
-  }));
+  const recipes = (result.recipes ?? []).map((r: any) => {
+    const n = r.nutrition;
+    return {
+      ...r,
+      instructions: typeof r.instructions === "string"
+        ? normalizeInstructions(r.instructions)
+        : r.instructions,
+      caloriesPerServing: n?.caloriesPerServing ?? null,
+      proteinG: n?.proteinG ?? null,
+      carbsG: n?.carbsG ?? null,
+      fatG: n?.fatG ?? null
+    };
+  });
 
   return NextResponse.json({ recipes });
 }

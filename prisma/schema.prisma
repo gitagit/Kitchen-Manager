@@ -71,6 +71,12 @@ model Recipe {
   complexity    String   @default("FAMILIAR") // FAMILIAR, STRETCH, CHALLENGE
   
   instructions  String
+
+  caloriesPerServing  Int?
+  proteinG            Int?
+  carbsG              Int?
+  fatG                Int?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

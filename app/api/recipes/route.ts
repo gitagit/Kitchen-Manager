@@ -29,7 +29,11 @@ const RecipeSchema = z.object({
   sourceRef: z.string().optional(),
   cuisine: z.string().optional(),
   complexity: z.enum(["FAMILIAR", "STRETCH", "CHALLENGE"]).optional(),
-  techniques: z.array(z.string()).optional() // technique names
+  techniques: z.array(z.string()).optional(), // technique names
+  caloriesPerServing: z.number().int().positive().optional(),
+  proteinG: z.number().int().nonnegative().optional(),
+  carbsG: z.number().int().nonnegative().optional(),
+  fatG: z.number().int().nonnegative().optional()
 });
 
 export async function GET() {
@@ -94,6 +98,10 @@ export async function POST(req: Request) {
       sourceRef: r.sourceRef ?? undefined,
       cuisine: r.cuisine ?? undefined,
       complexity: r.complexity ?? undefined,
+      caloriesPerServing: r.caloriesPerServing ?? undefined,
+      proteinG: r.proteinG ?? undefined,
+      carbsG: r.carbsG ?? undefined,
+      fatG: r.fatG ?? undefined,
       ingredients: {
         deleteMany: {},
         create: r.ingredients.map((i) => ({
@@ -124,6 +132,10 @@ export async function POST(req: Request) {
       sourceRef: r.sourceRef ?? null,
       cuisine: r.cuisine ?? null,
       complexity: r.complexity ?? "FAMILIAR",
+      caloriesPerServing: r.caloriesPerServing ?? null,
+      proteinG: r.proteinG ?? null,
+      carbsG: r.carbsG ?? null,
+      fatG: r.fatG ?? null,
       ingredients: {
         create: r.ingredients.map((i) => ({
           name: i.name,
@@ -185,6 +197,10 @@ export async function PUT(req: Request) {
       sourceRef: r.sourceRef ?? undefined,
       cuisine: r.cuisine ?? undefined,
       complexity: r.complexity ?? undefined,
+      caloriesPerServing: r.caloriesPerServing ?? undefined,
+      proteinG: r.proteinG ?? undefined,
+      carbsG: r.carbsG ?? undefined,
+      fatG: r.fatG ?? undefined,
       ingredients: {
         deleteMany: {},
         create: r.ingredients.map((i) => ({
