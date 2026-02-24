@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     title: "Mise en App",
   },
   icons: {
-    apple: "/icons/icon.svg",
+    apple: "/icons/apple-touch-icon.png",
   },
 };
 
