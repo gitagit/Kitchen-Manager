@@ -85,6 +85,7 @@ export default function InventoryClient() {
   const [location, setLocation] = useState("PANTRY");
   const [qty, setQty] = useState("1");
   const [cost, setCost] = useState("");
+  const [parLevel, setParLevel] = useState<number | null>(null);
   const [importText, setImportText] = useState("");
 
   // Edit mode state
@@ -97,6 +98,7 @@ export default function InventoryClient() {
   const [filterLocation, setFilterLocation] = useState("");
   const [filterExpiring, setFilterExpiring] = useState(false);
   const [filterStale, setFilterStale] = useState(false);
+  const [filterBelowPar, setFilterBelowPar] = useState(false);
 
   // UI collapse state
   const [showImport, setShowImport] = useState(false);
@@ -147,7 +149,7 @@ export default function InventoryClient() {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               id: editingId,
-              item: { name, category, location, defaultCostCents: costCents },
+              item: { name, category, location, defaultCostCents: costCents, parLevel: parLevel },
               batch: editingBatchId
                 ? { id: editingBatchId, quantityText: qty, costCents }
                 : { quantityText: qty, costCents }
@@ -185,6 +187,7 @@ export default function InventoryClient() {
     setLocation("PANTRY");
     setQty("1");
     setCost("");
+    setParLevel(null);
   }
 
   async function runImport() {
@@ -393,6 +396,7 @@ export default function InventoryClient() {
     setQty(it.batches[0]?.quantityText || "1");
     const itemCost = it.batches[0]?.costCents ?? it.defaultCostCents;
     setCost(itemCost ? (itemCost / 100).toFixed(2) : "");
+    setParLevel(it.parLevel);
     // Scroll to form
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -420,6 +424,7 @@ export default function InventoryClient() {
   }, [items]);
 
   const staleCount = useMemo(() => items.filter(it => isStale(it.lastConfirmed)).length, [items]);
+  const belowParCount = useMemo(() => items.filter(it => it.parLevel != null && it.batches.length < it.parLevel).length, [items]);
 
   const filtered = useMemo(() => {
     return items.filter(it => {
@@ -431,9 +436,10 @@ export default function InventoryClient() {
         if (status !== "expired" && status !== "expiring-soon") return false;
       }
       if (filterStale && !isStale(it.lastConfirmed)) return false;
+      if (filterBelowPar && !(it.parLevel != null && it.batches.length < it.parLevel)) return false;
       return true;
     });
-  }, [items, searchQuery, filterCategory, filterLocation, filterExpiring, filterStale]);
+  }, [items, searchQuery, filterCategory, filterLocation, filterExpiring, filterStale, filterBelowPar]);
 
   const grouped = useMemo(() => {
     const m = new Map<string, Item[]>();
@@ -452,6 +458,7 @@ export default function InventoryClient() {
           <input placeholder="item name (e.g., canned chickpeas)" value={name} onChange={e=>setName(e.target.value)} />
           <input style={{maxWidth:140}} placeholder="qty (e.g., 2 cans)" value={qty} onChange={e=>setQty(e.target.value)} />
           <input style={{maxWidth:100}} placeholder="cost $" value={cost} onChange={e=>setCost(e.target.value)} type="number" step="0.01" min="0" />
+          <input style={{maxWidth:70}} placeholder="par" value={parLevel ?? ""} onChange={e=>setParLevel(e.target.value ? parseInt(e.target.value) : null)} type="number" min="0" title="Par level (min batches to keep on hand)" />
           <select value={category} onChange={e=>setCategory(e.target.value)}>
             {categories.map(c=><option key={c} value={c}>{c}</option>)}
           </select>
@@ -681,8 +688,18 @@ Freezer:
           >
             {filterStale ? "Showing stale" : `Stale${staleCount > 0 ? ` (${staleCount})` : ""}`}
           </button>
-          {(searchQuery || filterCategory || filterLocation || filterExpiring || filterStale) && (
-            <button onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterLocation(""); setFilterExpiring(false); setFilterStale(false); }}>
+          <button
+            onClick={() => setFilterBelowPar(!filterBelowPar)}
+            style={{
+              background: filterBelowPar ? "#88a" : undefined,
+              color: filterBelowPar ? "#fff" : undefined,
+              border: filterBelowPar ? "none" : undefined
+            }}
+          >
+            {filterBelowPar ? "Showing below par" : `Below par${belowParCount > 0 ? ` (${belowParCount})` : ""}`}
+          </button>
+          {(searchQuery || filterCategory || filterLocation || filterExpiring || filterStale || filterBelowPar) && (
+            <button onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterLocation(""); setFilterExpiring(false); setFilterStale(false); setFilterBelowPar(false); }}>
               Clear filters
             </button>
           )}
@@ -729,6 +746,9 @@ Freezer:
                     {it.name}
                     {isStale(it.lastConfirmed) && (
                       <span style={{ marginLeft: 6, fontSize: "0.7em", fontWeight: 600, color: "#c90", border: "1px solid #c90", borderRadius: 4, padding: "1px 5px" }}>stale</span>
+                    )}
+                    {it.parLevel != null && it.batches.length < it.parLevel && (
+                      <span style={{ marginLeft: 6, fontSize: "0.7em", fontWeight: 600, color: "#55a", border: "1px solid #88d", borderRadius: 4, padding: "1px 5px" }} title={`${it.batches.length} of ${it.parLevel} batches`}>↓ par</span>
                     )}
                   </td>
                   <td data-label="Location">{it.location}</td>

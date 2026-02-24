@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ConfirmModal, Toast } from "@/app/components/Modal";
+import { normName } from "@/lib/normalize";
 
 type Recipe = {
   id: string;
@@ -79,6 +80,7 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
   const [filterComplexity, setFilterComplexity] = useState("");
   const [filterSource, setFilterSource] = useState("");
   const [filterTag, setFilterTag] = useState("");
+  const [filterDuplicates, setFilterDuplicates] = useState(false);
 
   // UI collapse state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -360,6 +362,23 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
     return Array.from(set).sort();
   }, [recipes]);
 
+  const duplicateMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (let i = 0; i < recipes.length; i++) {
+      for (let j = i + 1; j < recipes.length; j++) {
+        const a = new Set(recipes[i].ingredients.map(x => normName(x.name)));
+        const b = new Set(recipes[j].ingredients.map(x => normName(x.name)));
+        const inter = [...a].filter(x => b.has(x)).length;
+        const union = new Set([...a, ...b]).size;
+        if (union >= 3 && inter / union >= 0.65) {
+          map.set(recipes[i].id, [...(map.get(recipes[i].id) ?? []), recipes[j].title]);
+          map.set(recipes[j].id, [...(map.get(recipes[j].id) ?? []), recipes[i].title]);
+        }
+      }
+    }
+    return map;
+  }, [recipes]);
+
   // Apply filters
   const filtered = useMemo(() => {
     return recipes.filter(r => {
@@ -369,13 +388,14 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
       if (filterComplexity && r.complexity !== filterComplexity) return false;
       if (filterSource && r.source !== filterSource) return false;
       if (filterTag && !r.tags?.includes(filterTag)) return false;
+      if (filterDuplicates && !duplicateMap.has(r.id)) return false;
       return true;
     });
-  }, [recipes, searchQuery, filterCuisine, filterDifficulty, filterComplexity, filterSource, filterTag]);
+  }, [recipes, searchQuery, filterCuisine, filterDifficulty, filterComplexity, filterSource, filterTag, filterDuplicates, duplicateMap]);
 
   const sorted = useMemo(() => filtered.slice().sort((a,b)=>a.title.localeCompare(b.title)), [filtered]);
 
-  const hasFilters = searchQuery || filterCuisine || filterDifficulty !== "" || filterComplexity || filterSource || filterTag;
+  const hasFilters = searchQuery || filterCuisine || filterDifficulty !== "" || filterComplexity || filterSource || filterTag || filterDuplicates;
 
   function clearFilters() {
     setSearchQuery("");
@@ -384,6 +404,7 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
     setFilterComplexity("");
     setFilterSource("");
     setFilterTag("");
+    setFilterDuplicates(false);
   }
 
   function promptDelete(id: string, recipeTitle: string) {
@@ -725,6 +746,16 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                 <option value="">Any source</option>
                 {sources.map(s => <option key={s} value={s}>{s.toLowerCase()}</option>)}
               </select>
+              <button
+                onClick={() => setFilterDuplicates(f => !f)}
+                style={{
+                  background: filterDuplicates ? "#c80" : undefined,
+                  color: filterDuplicates ? "#fff" : undefined,
+                  border: filterDuplicates ? "none" : undefined
+                }}
+              >
+                {filterDuplicates ? "Showing duplicates" : `Duplicates${duplicateMap.size > 0 ? ` (${duplicateMap.size})` : ""}`}
+              </button>
               {hasFilters && (
                 <button onClick={clearFilters}>Clear filters</button>
               )}
@@ -792,6 +823,11 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                   <span className="tag">{r.source.toLowerCase()}</span>
                   {r.techniques?.map(t => <span key={t.technique.id} className="tag tech">{t.technique.name}</span>)}
                 </div>
+                {duplicateMap.has(r.id) && (
+                  <div style={{fontSize:11, color:"#c80", marginTop:2}} title={`Similar to: ${duplicateMap.get(r.id)!.join(", ")}`}>
+                    ⚠ possible duplicate
+                  </div>
+                )}
               </div>
               {r.cookLogs.length > 0 && (
                 <div style={{textAlign:"right"}}>
@@ -856,6 +892,19 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                     );
                   })}
                 </ul>
+
+                {r.caloriesPerServing != null && (() => {
+                  const s = getScaledServings(r);
+                  return (
+                    <div style={{marginTop:8, fontSize:13, opacity:0.75}}>
+                      ≈{r.caloriesPerServing * s} cal&nbsp;·&nbsp;{(r.proteinG ?? 0) * s}g protein
+                      &nbsp;·&nbsp;{(r.carbsG ?? 0) * s}g carbs&nbsp;·&nbsp;{(r.fatG ?? 0) * s}g fat
+                      <span style={{marginLeft:6, fontSize:11, opacity:0.6}}>
+                        (total for {s} serving{s !== 1 ? "s" : ""}, AI estimate)
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 {/* Cost estimate */}
                 {recipeCosts[r.id] !== undefined && (

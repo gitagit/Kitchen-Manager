@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { normName } from "@/lib/normalize";
 
 type MealPlan = {
   id: string;
@@ -15,6 +16,8 @@ type Recipe = {
   id: string;
   title: string;
   servings: number;
+  totalMin: number;
+  ingredients: { name: string; quantityText: string | null }[];
 };
 
 const SLOTS = ["breakfast", "lunch", "dinner"] as const;
@@ -48,6 +51,7 @@ export default function MealPlanClient() {
   const [loading, setLoading] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  const [showBatchPrep, setShowBatchPrep] = useState(false);
 
   // Modal state for editing a slot
   const [editingSlot, setEditingSlot] = useState<{ date: Date; slot: string } | null>(null);
@@ -84,7 +88,13 @@ export default function MealPlanClient() {
   async function fetchRecipes() {
     const res = await fetch("/api/recipes");
     const data = await res.json();
-    setRecipes(data.recipes.map((r: any) => ({ id: r.id, title: r.title, servings: r.servings || 2 })));
+    setRecipes(data.recipes.map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      servings: r.servings || 2,
+      totalMin: r.totalMin || 30,
+      ingredients: r.ingredients?.map((i: any) => ({ name: i.name, quantityText: i.quantityText ?? null })) ?? []
+    })));
   }
 
   useEffect(() => {
@@ -186,13 +196,20 @@ export default function MealPlanClient() {
           </h3>
           <button onClick={() => setWeekOffset(w => w + 1)}>Next Week &rarr;</button>
         </div>
-        <div style={{ textAlign: "center", marginTop: 8 }}>
+        <div style={{ textAlign: "center", marginTop: 8, display: "flex", gap: 8, justifyContent: "center" }}>
           <button
             onClick={sendToGrocery}
             disabled={!plans.some(p => p.recipeId)}
             title="Generate grocery list from this week's recipes"
           >
             &rarr; Grocery list
+          </button>
+          <button
+            onClick={() => setShowBatchPrep(true)}
+            disabled={!plans.some(p => p.recipeId)}
+            title="View combined prep list for this week"
+          >
+            📋 Batch prep
           </button>
         </div>
         {weekOffset !== 0 && (
@@ -387,6 +404,68 @@ export default function MealPlanClient() {
           </div>
         </div>
       )}
+
+      {showBatchPrep && (() => {
+        const weekRecipes = recipes.filter(r => plans.some(p => p.recipeId === r.id));
+        const ingMap = new Map<string, { display: string; entries: string[] }>();
+        for (const recipe of weekRecipes) {
+          for (const ing of recipe.ingredients) {
+            const key = normName(ing.name);
+            if (!ingMap.has(key)) ingMap.set(key, { display: ing.name, entries: [] });
+            const qty = ing.quantityText ? `${ing.quantityText} (${recipe.title})` : recipe.title;
+            ingMap.get(key)!.entries.push(qty);
+          }
+        }
+        const sortedIngs = [...ingMap.values()].sort((a, b) => a.display.localeCompare(b.display));
+
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+            onClick={() => setShowBatchPrep(false)}
+          >
+            <div
+              className="card"
+              style={{ minWidth: 340, maxWidth: 680, width: "90vw", maxHeight: "85vh", overflowY: "auto" }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <h3 style={{ margin: 0 }}>📋 Batch Prep</h3>
+                <button onClick={() => setShowBatchPrep(false)} style={{ padding: "2px 10px" }}>✕</button>
+              </div>
+              <small className="muted">
+                {weekDates[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {weekDates[6].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </small>
+
+              <h4 style={{ marginTop: 16, marginBottom: 8 }}>This week&apos;s recipes</h4>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {weekRecipes.map(r => (
+                  <li key={r.id} style={{ marginBottom: 4 }}>
+                    {r.title}
+                    <small className="muted" style={{ marginLeft: 8 }}>{r.totalMin}m • serves {r.servings}</small>
+                  </li>
+                ))}
+              </ul>
+
+              <h4 style={{ marginTop: 16, marginBottom: 8 }}>Combined ingredients</h4>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {sortedIngs.map(({ display, entries }) => (
+                  <li key={display} style={{ marginBottom: 4 }}>
+                    <strong>{display}</strong>
+                    <small className="muted" style={{ marginLeft: 8 }}>{entries.join(" · ")}</small>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="row" style={{ marginTop: 16 }}>
+                <button onClick={() => { sendToGrocery(); setShowBatchPrep(false); }}>
+                  &rarr; Grocery list
+                </button>
+                <button onClick={() => setShowBatchPrep(false)}>Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {toast && (
         <div
