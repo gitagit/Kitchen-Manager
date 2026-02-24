@@ -117,6 +117,18 @@ export async function PUT(req: Request) {
   return NextResponse.json({ item: updated });
 }
 
+export async function PATCH(req: Request) {
+  const { id } = await req.json();
+  if (!id || typeof id !== "string") {
+    return NextResponse.json({ error: "id required" }, { status: 400 });
+  }
+  const item = await prisma.item.update({
+    where: { id },
+    data: { lastConfirmed: new Date() },
+  });
+  return NextResponse.json({ item });
+}
+
 export async function DELETE(req: Request) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");

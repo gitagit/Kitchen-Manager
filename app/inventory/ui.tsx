@@ -11,6 +11,7 @@ type Item = {
   staple: boolean;
   parLevel: number | null;
   defaultCostCents: number | null;
+  lastConfirmed: string | null;
   batches: { id: string; quantityText: string; expiresOn: string | null; purchasedOn: string | null; costCents: number | null }[];
 };
 
@@ -54,6 +55,13 @@ function getExpirationStyle(status: ExpirationStatus): React.CSSProperties {
   }
 }
 
+const STALE_DAYS = 14;
+function isStale(lastConfirmed: string | null): boolean {
+  if (!lastConfirmed) return true;
+  const diffMs = Date.now() - new Date(lastConfirmed).getTime();
+  return diffMs > STALE_DAYS * 24 * 60 * 60 * 1000;
+}
+
 function formatExpiration(expiresOn: string | null): string {
   if (!expiresOn) return "";
   const now = new Date();
@@ -88,6 +96,7 @@ export default function InventoryClient() {
   const [filterCategory, setFilterCategory] = useState("");
   const [filterLocation, setFilterLocation] = useState("");
   const [filterExpiring, setFilterExpiring] = useState(false);
+  const [filterStale, setFilterStale] = useState(false);
 
   // UI collapse state
   const [showImport, setShowImport] = useState(false);
@@ -388,6 +397,20 @@ export default function InventoryClient() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  async function confirmItem(id: string) {
+    try {
+      const res = await fetch("/api/inventory/items", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error("Failed to confirm item");
+      await refresh();
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : "Failed to confirm item", type: "error" });
+    }
+  }
+
   // Count expiring items
   const expiringCount = useMemo(() => {
     return items.filter(it => {
@@ -395,6 +418,8 @@ export default function InventoryClient() {
       return status === "expired" || status === "expiring-soon";
     }).length;
   }, [items]);
+
+  const staleCount = useMemo(() => items.filter(it => isStale(it.lastConfirmed)).length, [items]);
 
   const filtered = useMemo(() => {
     return items.filter(it => {
@@ -405,9 +430,10 @@ export default function InventoryClient() {
         const status = getExpirationStatus(it.batches[0]?.expiresOn ?? null);
         if (status !== "expired" && status !== "expiring-soon") return false;
       }
+      if (filterStale && !isStale(it.lastConfirmed)) return false;
       return true;
     });
-  }, [items, searchQuery, filterCategory, filterLocation, filterExpiring]);
+  }, [items, searchQuery, filterCategory, filterLocation, filterExpiring, filterStale]);
 
   const grouped = useMemo(() => {
     const m = new Map<string, Item[]>();
@@ -645,8 +671,18 @@ Freezer:
           >
             {filterExpiring ? "Showing expiring" : `Expiring soon${expiringCount > 0 ? ` (${expiringCount})` : ""}`}
           </button>
-          {(searchQuery || filterCategory || filterLocation || filterExpiring) && (
-            <button onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterLocation(""); setFilterExpiring(false); }}>
+          <button
+            onClick={() => setFilterStale(!filterStale)}
+            style={{
+              background: filterStale ? "#c90" : undefined,
+              color: filterStale ? "#fff" : undefined,
+              border: filterStale ? "none" : undefined
+            }}
+          >
+            {filterStale ? "Showing stale" : `Stale${staleCount > 0 ? ` (${staleCount})` : ""}`}
+          </button>
+          {(searchQuery || filterCategory || filterLocation || filterExpiring || filterStale) && (
+            <button onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterLocation(""); setFilterExpiring(false); setFilterStale(false); }}>
               Clear filters
             </button>
           )}
@@ -689,7 +725,12 @@ Freezer:
             <tbody>
               {list.map(it => (
                 <tr key={it.id}>
-                  <td>{it.name}</td>
+                  <td>
+                    {it.name}
+                    {isStale(it.lastConfirmed) && (
+                      <span style={{ marginLeft: 6, fontSize: "0.7em", fontWeight: 600, color: "#c90", border: "1px solid #c90", borderRadius: 4, padding: "1px 5px" }}>stale</span>
+                    )}
+                  </td>
                   <td data-label="Location">{it.location}</td>
                   <td data-label="Stock">
                     {it.batches[0] ? (
@@ -711,6 +752,7 @@ Freezer:
                     </span>
                   </td>
                   <td>
+                    <button onClick={() => confirmItem(it.id)} title="Confirm still in stock" style={{marginRight: 4, padding: "2px 8px", color: "#3a3"}}>✓</button>
                     <button onClick={() => editItem(it)} style={{marginRight: 4, padding: "2px 8px"}}>Edit</button>
                     <button onClick={() => promptDelete(it.id, it.name)} style={{padding: "2px 8px", color: "#c44"}}>Delete</button>
                   </td>

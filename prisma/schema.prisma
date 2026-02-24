@@ -24,6 +24,7 @@ model Item {
   preferredBrand  String?
   notes           String?
   defaultCostCents Int?    // Default cost estimate in cents (e.g., 499 = $4.99)
+  lastConfirmed   DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

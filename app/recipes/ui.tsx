@@ -884,11 +884,11 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                           </span>
                           <span style={{fontSize:12, opacity:0.6}}>
                             {new Date(log.cookedOn).toLocaleDateString()}
-                            {!log.wouldRepeat && <span style={{marginLeft:8, color:"#c66"}}>wouldn't repeat</span>}
+                            {!log.wouldRepeat && <span style={{marginLeft:8, color:"#c66"}}>wouldn&apos;t repeat</span>}
                           </span>
                         </div>
                         {log.notes && (
-                          <p style={{margin:"4px 0 0", fontSize:13, opacity:0.8, fontStyle:"italic"}}>"{log.notes}"</p>
+                          <p style={{margin:"4px 0 0", fontSize:13, opacity:0.8, fontStyle:"italic"}}>&ldquo;{log.notes}&rdquo;</p>
                         )}
                       </div>
                     ))}
