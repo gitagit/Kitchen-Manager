@@ -115,6 +115,14 @@ export default function InventoryClient() {
 
   // UI collapse state
   const [showImport, setShowImport] = useState(false);
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+  function toggleCat(cat: string) {
+    setCollapsedCats(prev => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+  }
 
   // Modal and toast state
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
@@ -479,13 +487,18 @@ export default function InventoryClient() {
     });
   }, [items, searchQuery, filterCategory, filterLocation, filterExpiring, filterStale, filterBelowPar]);
 
+  const CAT_ORDER = ["PRODUCE","MEAT","DAIRY","FROZEN","PANTRY","CONDIMENT","BAKING","SPICE","BEVERAGE","OTHER"];
   const grouped = useMemo(() => {
     const m = new Map<string, Item[]>();
     for (const it of filtered) {
       const k = it.category;
       m.set(k, [...(m.get(k) ?? []), it]);
     }
-    return Array.from(m.entries()).sort((a,b)=>a[0].localeCompare(b[0]));
+    return Array.from(m.entries()).sort((a, b) => {
+      const ai = CAT_ORDER.indexOf(a[0]);
+      const bi = CAT_ORDER.indexOf(b[0]);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
   }, [filtered]);
 
   return (
@@ -783,10 +796,19 @@ Freezer:
           <h3>No matches</h3>
           <p>No items match your current filters. Try adjusting them.</p>
         </div>
-      ) : grouped.map(([cat, list]) => (
+      ) : grouped.map(([cat, list]) => {
+        const collapsed = collapsedCats.has(cat);
+        return (
         <div key={cat} className="card">
-          <h3>{cat}</h3>
-          <table>
+          <h3
+            onClick={() => toggleCat(cat)}
+            style={{ cursor: "pointer", userSelect: "none", display: "flex", alignItems: "center", gap: 8, margin: 0, padding: "4px 0" }}
+          >
+            <span style={{ fontSize: "0.8em", opacity: 0.5 }}>{collapsed ? "▶" : "▼"}</span>
+            {cat}
+            <span style={{ fontSize: "0.75em", fontWeight: 400, opacity: 0.5 }}>{list.length} item{list.length !== 1 ? "s" : ""}</span>
+          </h3>
+          {!collapsed && <table style={{ marginTop: 10 }}>
             <thead>
               <tr>
                 <th style={{width:"22%"}}>Item</th>
@@ -838,9 +860,10 @@ Freezer:
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table>}
         </div>
-      ))}
+        );
+      })}
 
       <ConfirmModal
         open={!!deleteModal}
