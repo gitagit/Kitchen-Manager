@@ -88,6 +88,7 @@ export default function SuggestClient() {
   const [generatedRecipes, setGeneratedRecipes] = useState<GeneratedRecipe[]>([]);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generateCount, setGenerateCount] = useState(3);
   const [savingIdx, setSavingIdx] = useState<Set<number>>(new Set());
   const [savedIdx, setSavedIdx] = useState<Set<number>>(new Set());
   const [savedRecipeIds, setSavedRecipeIds] = useState<Record<number, string>>({});
@@ -170,7 +171,7 @@ export default function SuggestClient() {
           complexity: complexity !== "ANY" ? complexity : undefined,
           mustUse: mustUse ? mustUse.split(",").map(s => s.trim()).filter(Boolean) : undefined,
           mealType: occasion !== "ANY" ? occasion : undefined,
-          count: 3
+          count: generateCount
         })
       });
       const data = await res.json();
@@ -530,7 +531,25 @@ export default function SuggestClient() {
           Save the ones you like and they&apos;ll appear in Find Recipes going forward.
           Uses your filters above. Costs a small amount of API credit per generation.
         </p>
-        <div className="row">
+        <div className="row" style={{alignItems:"center", flexWrap:"wrap", gap:8}}>
+          <div style={{display:"flex", alignItems:"center", gap:6}}>
+            <span style={{fontSize:13, opacity:0.65}}>Count:</span>
+            {[1, 2, 3].map(n => (
+              <button
+                key={n}
+                onClick={() => setGenerateCount(n)}
+                disabled={generating}
+                style={{
+                  padding:"4px 10px", fontSize:13, minWidth:32,
+                  background: generateCount === n ? "rgba(100,150,255,0.2)" : "transparent",
+                  border: `1px solid ${generateCount === n ? "rgba(100,150,255,0.5)" : "rgba(127,127,127,0.25)"}`,
+                  fontWeight: generateCount === n ? 600 : 400,
+                }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
           <button
             onClick={generate}
             disabled={generating}

@@ -160,7 +160,7 @@ Field rules:
   if (message.stop_reason === "max_tokens") {
     log.error("Response truncated at max_tokens", { workspaceId });
     await log.flush();
-    return NextResponse.json({ error: "Recipe generation response was too long — try generating fewer recipes or simplifying constraints." }, { status: 500 });
+    return NextResponse.json({ error: "Recipe generation response was too long — try generating 1 or 2 recipes instead of 3." }, { status: 500 });
   }
 
   const content = message.content[0];
