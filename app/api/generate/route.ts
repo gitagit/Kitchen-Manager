@@ -148,13 +148,19 @@ Field rules:
   try {
     message = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{ role: "user", content: prompt }]
     });
   } catch (err: any) {
     log.error("Claude API error", { workspaceId, error: err?.message });
     await log.flush();
     return NextResponse.json({ error: err?.message ?? "Claude API error" }, { status: 502 });
+  }
+
+  if (message.stop_reason === "max_tokens") {
+    log.error("Response truncated at max_tokens", { workspaceId });
+    await log.flush();
+    return NextResponse.json({ error: "Recipe generation response was too long — try generating fewer recipes or simplifying constraints." }, { status: 500 });
   }
 
   const content = message.content[0];
