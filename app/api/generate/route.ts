@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonrepair } from "jsonrepair";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { checkAiLimit, recordAiCall, getAiLimit } from "@/lib/ai-limiter";
@@ -181,10 +182,21 @@ Field rules:
   let result: { recipes: unknown[] };
   try {
     result = JSON.parse(jsonText);
-  } catch {
-    log.error("JSON parse failed", { workspaceId, rawResponse: jsonText.slice(0, 500) });
-    await log.flush();
-    return NextResponse.json({ error: "Failed to parse Claude response as JSON" }, { status: 500 });
+  } catch (firstErr) {
+    // Claude sometimes emits literal newlines inside JSON strings (especially in "instructions").
+    // jsonrepair fixes that and other common AI JSON issues (trailing commas, etc.).
+    try {
+      result = JSON.parse(jsonrepair(jsonText));
+      log.warn("JSON parse required repair", { workspaceId });
+    } catch {
+      log.error("JSON parse failed", {
+        workspaceId,
+        firstError: String(firstErr),
+        rawResponse: jsonText.slice(0, 2000)
+      });
+      await log.flush();
+      return NextResponse.json({ error: "Failed to parse Claude response as JSON" }, { status: 500 });
+    }
   }
 
   const recipes = (result.recipes ?? []).map((r: any) => {
