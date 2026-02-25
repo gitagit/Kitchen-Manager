@@ -60,19 +60,7 @@ export async function GET() {
     prisma.recipe.count({ where: { workspaceId } })
   ]);
 
-  // Parse JSON string fields to arrays
-  const parsed = recipes.map(r => ({
-    ...r,
-    equipment: typeof r.equipment === "string" ? JSON.parse(r.equipment) : r.equipment,
-    tags: typeof r.tags === "string" ? JSON.parse(r.tags) : r.tags,
-    seasons: typeof r.seasons === "string" ? JSON.parse(r.seasons) : r.seasons,
-    ingredients: r.ingredients.map(i => ({
-      ...i,
-      substitutions: typeof i.substitutions === "string" ? JSON.parse(i.substitutions) : i.substitutions
-    }))
-  }));
-
-  return NextResponse.json({ recipes: parsed, total, truncated: total > RECIPE_LIMIT });
+  return NextResponse.json({ recipes, total, truncated: total > RECIPE_LIMIT });
 }
 
 export async function POST(req: Request) {
@@ -109,9 +97,9 @@ export async function POST(req: Request) {
       handsOnMin: r.handsOnMin ?? undefined,
       totalMin: r.totalMin ?? undefined,
       difficulty: r.difficulty ?? undefined,
-      equipment: r.equipment ? JSON.stringify(r.equipment) : undefined,
-      tags: r.tags ? JSON.stringify(r.tags) : undefined,
-      seasons: r.seasons ? JSON.stringify(r.seasons) : undefined,
+      equipment: r.equipment ?? undefined,
+      tags: r.tags ?? undefined,
+      seasons: r.seasons ?? undefined,
       instructions: r.instructions,
       source: r.source ?? undefined,
       sourceRef: r.sourceRef ?? undefined,
@@ -128,7 +116,7 @@ export async function POST(req: Request) {
           required: i.required ?? true,
           quantityText: i.quantityText ?? null,
           preparation: i.preparation ?? null,
-          substitutions: i.substitutions ? JSON.stringify(i.substitutions) : "[]"
+          substitutions: i.substitutions ?? []
         }))
       },
       techniques: {
@@ -144,9 +132,9 @@ export async function POST(req: Request) {
       handsOnMin: r.handsOnMin ?? 15,
       totalMin: r.totalMin ?? 30,
       difficulty: r.difficulty ?? 2,
-      equipment: r.equipment ? JSON.stringify(r.equipment) : "[]",
-      tags: r.tags ? JSON.stringify(r.tags) : "[]",
-      seasons: r.seasons ? JSON.stringify(r.seasons) : "[]",
+      equipment: r.equipment ?? [],
+      tags: r.tags ?? [],
+      seasons: r.seasons ?? [],
       instructions: r.instructions,
       source: r.source ?? "PERSONAL",
       sourceRef: r.sourceRef ?? null,
@@ -162,7 +150,7 @@ export async function POST(req: Request) {
           required: i.required ?? true,
           quantityText: i.quantityText ?? null,
           preparation: i.preparation ?? null,
-          substitutions: i.substitutions ? JSON.stringify(i.substitutions) : "[]"
+          substitutions: i.substitutions ?? []
         }))
       },
       techniques: {
@@ -222,9 +210,9 @@ export async function PUT(req: Request) {
       handsOnMin: r.handsOnMin ?? undefined,
       totalMin: r.totalMin ?? undefined,
       difficulty: r.difficulty ?? undefined,
-      equipment: r.equipment ? JSON.stringify(r.equipment) : undefined,
-      tags: r.tags ? JSON.stringify(r.tags) : undefined,
-      seasons: r.seasons ? JSON.stringify(r.seasons) : undefined,
+      equipment: r.equipment ?? undefined,
+      tags: r.tags ?? undefined,
+      seasons: r.seasons ?? undefined,
       instructions: r.instructions,
       source: r.source ?? undefined,
       sourceRef: r.sourceRef ?? undefined,
@@ -241,7 +229,7 @@ export async function PUT(req: Request) {
           required: i.required ?? true,
           quantityText: i.quantityText ?? null,
           preparation: i.preparation ?? null,
-          substitutions: i.substitutions ? JSON.stringify(i.substitutions) : "[]"
+          substitutions: i.substitutions ?? []
         }))
       },
       techniques: {
@@ -270,7 +258,7 @@ export async function PUT(req: Request) {
     await prisma.recipeEditLog.create({
       data: {
         recipeId: id,
-        changedFields: JSON.stringify(changed),
+        changedFields: changed,
         note: note ?? null,
       }
     });

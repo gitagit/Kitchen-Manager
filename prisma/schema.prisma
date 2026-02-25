@@ -131,9 +131,9 @@ model Recipe {
 
   cuisine       String?
 
-  equipment     String   @default("[]") // JSON array as string: ["STOVETOP","OVEN"]
-  tags          String   @default("[]") // JSON array as string: ["WEEKNIGHT","POTLUCK"]
-  seasons       String   @default("[]") // JSON array as string: ["SUMMER","FALL","WINTER","SPRING"]
+  equipment     Json     @default("[]") // JSON array: ["STOVETOP","OVEN"]
+  tags          Json     @default("[]") // JSON array: ["WEEKNIGHT","POTLUCK"]
+  seasons       Json     @default("[]") // JSON array: ["SUMMER","FALL","WINTER","SPRING"]
 
   complexity    String   @default("FAMILIAR") // FAMILIAR, STRETCH, CHALLENGE
 
@@ -164,7 +164,7 @@ model RecipeIngredient {
   quantityText  String?
   preparation   String?
   categoryHint  String?  // Optional: PANTRY, SPICE, etc.
-  substitutions String   @default("[]") // JSON array as string: ["shallot","red onion"]
+  substitutions Json     @default("[]") // JSON array: ["shallot","red onion"]
 
   recipe        Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
@@ -177,7 +177,7 @@ model RecipeEditLog {
   id            String   @id @default(cuid())
   recipeId      String
   editedAt      DateTime @default(now())
-  changedFields String   @default("[]") // JSON array: ["instructions","servings","ingredients"]
+  changedFields Json     @default("[]") // JSON array: ["instructions","servings","ingredients"]
   note          String?  // Optional user-written description of what changed
 
   recipe        Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
@@ -256,15 +256,15 @@ model GroceryItem {
 model UserPreferences {
   id                 String   @id @default(cuid())
   workspaceId        String   @unique
-  // Equipment (JSON string array, e.g. ["OVEN","STOVETOP"])
-  equipment          String   @default("[\"OVEN\",\"STOVETOP\"]")
+  // Equipment (JSON array, e.g. ["OVEN","STOVETOP"])
+  equipment          Json     @default("[\"OVEN\",\"STOVETOP\"]")
   // Time & servings
   defaultServings    Int      @default(2)
   defaultMaxTimeMin  Int      @default(45)
-  // Dietary restrictions (JSON string array of tags to always exclude)
-  dietaryTagsExclude String   @default("[]")
+  // Dietary restrictions (JSON array of tags to always exclude)
+  dietaryTagsExclude Json     @default("[]")
   // Cuisine & complexity
-  cuisinesExclude    String   @default("[]")
+  cuisinesExclude    Json     @default("[]")
   defaultComplexity  String   @default("ANY")
   // Variety & growth defaults
   wantVariety        Boolean  @default(true)

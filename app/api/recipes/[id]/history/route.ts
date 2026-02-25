@@ -26,10 +26,5 @@ export async function GET(
     take: 30,
   });
 
-  return NextResponse.json({
-    logs: logs.map(l => ({
-      ...l,
-      changedFields: JSON.parse(l.changedFields) as string[],
-    }))
-  });
+  return NextResponse.json({ logs });
 }

@@ -16,30 +16,6 @@ const DEFAULTS = {
   showGamification: false,
 };
 
-function deserialize(row: {
-  equipment: string;
-  defaultServings: number;
-  defaultMaxTimeMin: number;
-  dietaryTagsExclude: string;
-  cuisinesExclude: string;
-  defaultComplexity: string;
-  wantVariety: boolean;
-  wantGrowth: boolean;
-  showGamification: boolean;
-}) {
-  return {
-    equipment: JSON.parse(row.equipment) as string[],
-    defaultServings: row.defaultServings,
-    defaultMaxTimeMin: row.defaultMaxTimeMin,
-    dietaryTagsExclude: JSON.parse(row.dietaryTagsExclude) as string[],
-    cuisinesExclude: JSON.parse(row.cuisinesExclude) as string[],
-    defaultComplexity: row.defaultComplexity,
-    wantVariety: row.wantVariety,
-    wantGrowth: row.wantGrowth,
-    showGamification: row.showGamification,
-  };
-}
-
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -50,7 +26,7 @@ export async function GET() {
   if (!row) {
     return NextResponse.json(DEFAULTS);
   }
-  return NextResponse.json(deserialize(row));
+  return NextResponse.json(row);
 }
 
 export async function PUT(req: Request) {
@@ -67,11 +43,11 @@ export async function PUT(req: Request) {
 
   const data = parsed.data;
   const fields: Record<string, unknown> = {};
-  if (data.equipment !== undefined) fields.equipment = JSON.stringify(data.equipment);
+  if (data.equipment !== undefined) fields.equipment = data.equipment;
   if (data.defaultServings !== undefined) fields.defaultServings = data.defaultServings;
   if (data.defaultMaxTimeMin !== undefined) fields.defaultMaxTimeMin = data.defaultMaxTimeMin;
-  if (data.dietaryTagsExclude !== undefined) fields.dietaryTagsExclude = JSON.stringify(data.dietaryTagsExclude);
-  if (data.cuisinesExclude !== undefined) fields.cuisinesExclude = JSON.stringify(data.cuisinesExclude);
+  if (data.dietaryTagsExclude !== undefined) fields.dietaryTagsExclude = data.dietaryTagsExclude;
+  if (data.cuisinesExclude !== undefined) fields.cuisinesExclude = data.cuisinesExclude;
   if (data.defaultComplexity !== undefined) fields.defaultComplexity = data.defaultComplexity;
   if (data.wantVariety !== undefined) fields.wantVariety = data.wantVariety;
   if (data.wantGrowth !== undefined) fields.wantGrowth = data.wantGrowth;
@@ -83,5 +59,5 @@ export async function PUT(req: Request) {
     update: fields,
   });
 
-  return NextResponse.json(deserialize(row));
+  return NextResponse.json(row);
 }
