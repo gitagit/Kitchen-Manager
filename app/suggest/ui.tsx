@@ -61,6 +61,7 @@ type GeneratedRecipe = {
 export default function SuggestClient() {
   const [servings, setServings] = useState(2);
   const [maxTotalMin, setMaxTotalMin] = useState(45);
+  const [maxTotalMinStr, setMaxTotalMinStr] = useState("45");
   const [equipment, setEquipment] = useState("OVEN,STOVETOP");
   const [occasion, setOccasion] = useState<"BREAKFAST"|"LUNCH"|"DINNER"|"SNACK"|"WEEKNIGHT"|"POTLUCK"|"MEAL_PREP"|"ANY">("ANY");
   const [mustUse, setMustUse] = useState("");
@@ -94,9 +95,9 @@ export default function SuggestClient() {
 
   // Cook log form state
   const [logForm, setLogForm] = useState<LogForm>(null);
-  const [logRating, setLogRating] = useState(4);
+  const [logRating, setLogRating] = useState(3);
   const [logNotes, setLogNotes] = useState("");
-  const [logWouldRepeat, setLogWouldRepeat] = useState(true);
+  const [logWouldRepeat, setLogWouldRepeat] = useState(false);
   const [logSaving, setLogSaving] = useState(false);
   const [logSuccess, setLogSuccess] = useState<string | null>(null);
   const [logMatches, setLogMatches] = useState<LogInventoryMatch[]>([]);
@@ -108,7 +109,10 @@ export default function SuggestClient() {
       .then(res => res.json())
       .then(data => {
         if (data.equipment?.length) setEquipment(data.equipment.join(","));
-        if (data.defaultMaxTimeMin) setMaxTotalMin(data.defaultMaxTimeMin);
+        if (data.defaultMaxTimeMin) {
+          setMaxTotalMin(data.defaultMaxTimeMin);
+          setMaxTotalMinStr(String(data.defaultMaxTimeMin));
+        }
         if (data.defaultServings) setServings(data.defaultServings);
         if (data.dietaryTagsExclude?.length) setTagsExclude(data.dietaryTagsExclude.join(","));
         if (data.defaultComplexity && data.defaultComplexity !== "ANY") setComplexity(data.defaultComplexity);
@@ -218,9 +222,9 @@ export default function SuggestClient() {
 
   async function openLogForm(recipeId: string, title: string, haveList: string[]) {
     setLogForm({ recipeId, title });
-    setLogRating(4);
+    setLogRating(3);
     setLogNotes("");
-    setLogWouldRepeat(true);
+    setLogWouldRepeat(false);
     setLogSuccess(null);
     setLogMatches([]);
     setLogLoadingInventory(true);
@@ -404,7 +408,7 @@ export default function SuggestClient() {
         <h3>What are you looking for?</h3>
         <div className="row">
           <label>Servings <input type="number" value={servings} onChange={e=>setServings(parseInt(e.target.value||"2",10))} style={{maxWidth:70}}/></label>
-          <label>Max minutes <input type="number" value={maxTotalMin} onChange={e=>setMaxTotalMin(parseInt(e.target.value||"45",10))} style={{maxWidth:80}}/></label>
+          <label>Max minutes <input type="number" value={maxTotalMinStr} onChange={e=>{setMaxTotalMinStr(e.target.value);const v=parseInt(e.target.value,10);if(!isNaN(v)&&v>0)setMaxTotalMin(v);}} style={{maxWidth:80}}/></label>
           <label>Meal type
             <select value={occasion} onChange={e=>setOccasion(e.target.value as any)}>
               <option value="ANY">Any</option>
@@ -530,8 +534,9 @@ export default function SuggestClient() {
           <button
             onClick={generate}
             disabled={generating}
-            style={{padding:"10px 24px", fontWeight:500, background:"rgba(100,150,255,0.15)", border:"1px solid rgba(100,150,255,0.4)"}}
+            style={{padding:"10px 24px", fontWeight:500, background:"rgba(100,150,255,0.15)", border:"1px solid rgba(100,150,255,0.4)", display:"flex", alignItems:"center", gap:8}}
           >
+            {generating && <span className="spinner" style={{width:16,height:16,borderWidth:2,flexShrink:0}} />}
             {generating ? "Generating..." : "✨ Generate Recipe Ideas"}
           </button>
           {generatedRecipes.length > 0 && !generating && (

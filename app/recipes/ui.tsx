@@ -116,9 +116,9 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
 
   // Cook log form state (inline per recipe)
   const [logFormRecipeId, setLogFormRecipeId] = useState<string | null>(null);
-  const [logRating, setLogRating] = useState(4);
+  const [logRating, setLogRating] = useState(3);
   const [logNotes, setLogNotes] = useState("");
-  const [logWouldRepeat, setLogWouldRepeat] = useState(true);
+  const [logWouldRepeat, setLogWouldRepeat] = useState(false);
   const [logSaving, setLogSaving] = useState(false);
 
   // Leftover tracking — step 2 of the cook log flow
@@ -558,9 +558,9 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
 
   function openLogForm(recipeId: string) {
     setLogFormRecipeId(recipeId);
-    setLogRating(4);
+    setLogRating(3);
     setLogNotes("");
-    setLogWouldRepeat(true);
+    setLogWouldRepeat(false);
     setLogStep(1);
   }
 
@@ -569,9 +569,9 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
     setLogStep(1);
     setInvMatches([]);
     setMatchQtys({});
-    setLogRating(4);
+    setLogRating(3);
     setLogNotes("");
-    setLogWouldRepeat(true);
+    setLogWouldRepeat(false);
   }
 
   async function submitLog(recipe: Recipe) {

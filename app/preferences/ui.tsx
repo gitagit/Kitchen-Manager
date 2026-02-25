@@ -58,6 +58,8 @@ export default function PreferencesClient() {
     wantGrowth: false,
     showGamification: false,
   });
+  const [defaultServingsStr, setDefaultServingsStr] = useState("2");
+  const [maxTimeStr, setMaxTimeStr] = useState("45");
   const [dietaryInput, setDietaryInput] = useState("");
   const [cuisineInput, setCuisineInput] = useState("");
   const [loading, setLoading] = useState(true);
@@ -87,6 +89,8 @@ export default function PreferencesClient() {
       .then(res => res.json())
       .then((data: Prefs) => {
         setPrefs(data);
+        setDefaultServingsStr(String(data.defaultServings));
+        setMaxTimeStr(String(data.defaultMaxTimeMin));
         setDietaryInput(data.dietaryTagsExclude.join(", "));
         setCuisineInput(data.cuisinesExclude.join(", "));
       })
@@ -124,6 +128,8 @@ export default function PreferencesClient() {
       if (res.ok) {
         const saved: Prefs = await res.json();
         setPrefs(saved);
+        setDefaultServingsStr(String(saved.defaultServings));
+        setMaxTimeStr(String(saved.defaultMaxTimeMin));
         setDietaryInput(saved.dietaryTagsExclude.join(", "));
         setCuisineInput(saved.cuisinesExclude.join(", "));
         setStatus("saved");
@@ -170,12 +176,12 @@ export default function PreferencesClient() {
           </button>
           {inviteUrl && (
             <div style={{ marginTop: 10 }}>
-              <p style={{ margin: "0 0 4px 0", fontSize: 12, opacity: 0.65 }}>Share this link (expires in 7 days):</p>
+              <p style={{ margin: "0 0 4px 0", fontSize: 12, opacity: 0.65 }}>Invite link (expires in 7 days):</p>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input
                   readOnly
                   value={inviteUrl}
-                  style={{ flex: 1, fontSize: 12 }}
+                  style={{ flex: 1, fontSize: 12, background: "rgba(127,127,127,0.1)", cursor: "text" }}
                   onFocus={e => e.target.select()}
                 />
                 <button
@@ -184,6 +190,14 @@ export default function PreferencesClient() {
                 >
                   Copy
                 </button>
+                {typeof navigator !== "undefined" && "share" in navigator && (
+                  <button
+                    onClick={() => navigator.share({ url: inviteUrl, title: "Join my kitchen workspace on Mise en App" })}
+                    style={{ fontSize: 12, whiteSpace: "nowrap" }}
+                  >
+                    Share
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -235,8 +249,12 @@ export default function PreferencesClient() {
               type="number"
               min={1}
               max={20}
-              value={prefs.defaultServings}
-              onChange={e => setPrefs(prev => ({ ...prev, defaultServings: parseInt(e.target.value || "2", 10) }))}
+              value={defaultServingsStr}
+              onChange={e => {
+                setDefaultServingsStr(e.target.value);
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val > 0) setPrefs(prev => ({ ...prev, defaultServings: val }));
+              }}
               style={{ maxWidth: 80 }}
             />
           </label>
@@ -246,8 +264,12 @@ export default function PreferencesClient() {
               type="number"
               min={5}
               max={480}
-              value={prefs.defaultMaxTimeMin}
-              onChange={e => setPrefs(prev => ({ ...prev, defaultMaxTimeMin: parseInt(e.target.value || "45", 10) }))}
+              value={maxTimeStr}
+              onChange={e => {
+                setMaxTimeStr(e.target.value);
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val > 0) setPrefs(prev => ({ ...prev, defaultMaxTimeMin: val }));
+              }}
               style={{ maxWidth: 80 }}
             />
           </label>
