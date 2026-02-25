@@ -91,7 +91,7 @@ Deduplicate across images. Aim to identify as many items as possible.`;
   try {
     message = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 2048,
+      max_tokens: 4096,
       tools: [
         {
           name: "report_inventory_items",
@@ -117,7 +117,7 @@ Deduplicate across images. Aim to identify as many items as possible.`;
           }
         }
       ],
-      tool_choice: { type: "tool", name: "report_inventory_items" },
+      tool_choice: { type: "any" },
       messages: [
         {
           role: "user",
