@@ -253,7 +253,23 @@ export default function InventoryClient() {
     }
   }
 
+  async function isHeic(file: File): Promise<boolean> {
+    try {
+      const buf = await file.slice(0, 12).arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      // ftyp box at offset 4: heic / heix / mif1 / msf1
+      const ftyp = String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]);
+      const brand = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
+      return ftyp === "ftyp" && /^(heic|heix|mif1|msf1|hevc|hevx)/.test(brand);
+    } catch {
+      return false;
+    }
+  }
+
   async function resizeImage(file: File, maxPx = 1600): Promise<Blob> {
+    if (await isHeic(file)) {
+      throw new Error(`"${file.name}" is a HEIC file`);
+    }
     return new Promise((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
@@ -290,9 +306,10 @@ export default function InventoryClient() {
         try {
           const resized = await resizeImage(file);
           fd.append("images", resized, file.name.replace(/\.[^.]+$/, ".jpg"));
-        } catch {
-          // Resize failed (e.g. HEIC on Android) — send original if the server can accept it
-          if (VALID.includes(file.type) && file.size <= MAX) {
+        } catch (e: any) {
+          // Resize failed — send original only if it's a non-HEIC accepted format under 5MB
+          const heic = e?.message?.includes("HEIC") || await isHeic(file);
+          if (!heic && VALID.includes(file.type) && file.size <= MAX) {
             fd.append("images", file, file.name);
           } else {
             skipped.push(file.name);

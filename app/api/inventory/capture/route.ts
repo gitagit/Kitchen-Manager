@@ -68,7 +68,9 @@ export async function POST(req: Request) {
     });
   }
 
-  const prompt = `Analyze these kitchen, pantry, or refrigerator photos and identify every food item, ingredient, or pantry staple you can clearly see.
+  const prompt = `Analyze these kitchen, pantry, or refrigerator photos and identify every food item, ingredient, or pantry staple you can see.
+
+Report any item you can identify with reasonable confidence — partial labels, familiar packaging shapes, and known brand silhouettes all count. When in doubt, include it with your best guess at the name.
 
 For each item use:
 - name: lowercase, specific (e.g. "olive oil", "canned chickpeas", "frozen peas", "sharp cheddar")
@@ -78,10 +80,10 @@ For each item use:
   - CONDIMENT: ketchup, mustard, mayo, hot sauce, soy sauce, salad dressing, jam
   - DAIRY: milk, cheese, yogurt, butter, cream, eggs
   - BAKING: baking powder, baking soda, yeast, chocolate chips, vanilla extract, cocoa
-- location: PANTRY | FRIDGE | FREEZER | COUNTER | OTHER (infer from context)
-- quantityText: best estimate (e.g. "1 bottle", "2 cans", "half full", "1 bunch")
+- location: PANTRY | FRIDGE | FREEZER | COUNTER | OTHER (infer from context; use OTHER if unsure)
+- quantityText: best estimate (e.g. "1 bottle", "2 cans", "half full", "1 bunch"; use "unknown" if unclear)
 
-Be conservative — only report items you can clearly identify. Deduplicate across images.`;
+Deduplicate across images. Aim to identify as many items as possible.`;
 
   const client = new Anthropic();
 
