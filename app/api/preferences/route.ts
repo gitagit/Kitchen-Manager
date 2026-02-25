@@ -52,6 +52,10 @@ export async function PUT(req: Request) {
   if (data.wantVariety !== undefined) fields.wantVariety = data.wantVariety;
   if (data.wantGrowth !== undefined) fields.wantGrowth = data.wantGrowth;
   if (data.showGamification !== undefined) fields.showGamification = data.showGamification;
+  if (data.calorieGoal  !== undefined) fields.calorieGoal  = data.calorieGoal  ?? null;
+  if (data.proteinGoalG !== undefined) fields.proteinGoalG = data.proteinGoalG ?? null;
+  if (data.carbsGoalG   !== undefined) fields.carbsGoalG   = data.carbsGoalG   ?? null;
+  if (data.fatGoalG     !== undefined) fields.fatGoalG     = data.fatGoalG     ?? null;
 
   const row = await prisma.userPreferences.upsert({
     where: { workspaceId },

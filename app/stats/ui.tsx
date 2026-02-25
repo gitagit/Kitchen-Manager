@@ -18,6 +18,18 @@ type Stats = {
     avgCostPerMealCents: number | null;
   };
   showGamification: boolean;
+  nutrition: {
+    avgDailyCalories: number | null;
+    avgDailyProteinG: number | null;
+    avgDailyCarbsG:   number | null;
+    avgDailyFatG:     number | null;
+    goals: {
+      calorieGoal:  number | null;
+      proteinGoalG: number | null;
+      carbsGoalG:   number | null;
+      fatGoalG:     number | null;
+    };
+  };
   ratingDistribution: Record<number, number>;
   topCuisines: { cuisine: string; count: number }[];
   mostCooked: { id: string; title: string; count: number; avgRating: number }[];
@@ -104,7 +116,7 @@ export default function StatsClient() {
     );
   }
 
-  const { overview, ratingDistribution, topCuisines, mostCooked, highestRated, monthlyActivity, techniqueStats, comfortDistribution, showGamification } = stats;
+  const { overview, ratingDistribution, topCuisines, mostCooked, highestRated, monthlyActivity, techniqueStats, comfortDistribution, showGamification, nutrition } = stats;
 
   // Format monthly activity for chart
   const sortedMonths = Object.entries(monthlyActivity).sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
@@ -127,6 +139,42 @@ export default function StatsClient() {
           sub="per serving"
         />
       </div>
+
+      {/* Nutrition Section */}
+      {nutrition.avgDailyCalories != null && (() => {
+        const macros = [
+          { label: "Avg Daily Calories", value: nutrition.avgDailyCalories, unit: "kcal", goal: nutrition.goals.calorieGoal },
+          { label: "Avg Daily Protein",  value: nutrition.avgDailyProteinG, unit: "g",    goal: nutrition.goals.proteinGoalG },
+          { label: "Avg Daily Carbs",    value: nutrition.avgDailyCarbsG,   unit: "g",    goal: nutrition.goals.carbsGoalG },
+          { label: "Avg Daily Fat",      value: nutrition.avgDailyFatG,     unit: "g",    goal: nutrition.goals.fatGoalG },
+        ];
+        return (
+          <div className="card">
+            <h3 style={{ margin: "0 0 12px 0" }}>Nutrition</h3>
+            <p style={{ margin: "0 0 14px 0", fontSize: 13, opacity: 0.55 }}>Averages based on your cook log history. Set goals in Preferences.</p>
+            <div className="stat-grid">
+              {macros.map(({ label, value, unit, goal }) => {
+                const pct = (goal && value) ? Math.min(100, Math.round((value / goal) * 100)) : null;
+                const color = pct != null && pct >= 90 ? "rgba(100,200,100,0.7)" : "rgba(100,150,255,0.7)";
+                return (
+                  <div key={label} className="stat-card">
+                    <div className="stat-value">{value ?? "—"}{value != null ? <span style={{ fontSize: "0.55em", marginLeft: 2, opacity: 0.7 }}>{unit}</span> : ""}</div>
+                    <div className="stat-label">{label}</div>
+                    {goal && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 3 }}>goal: {goal}{unit} · {pct}%</div>
+                        <div style={{ height: 4, borderRadius: 2, background: "rgba(127,127,127,0.15)", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 2 }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {showGamification && (
         <div className="card">

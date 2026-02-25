@@ -22,6 +22,10 @@ export async function GET() {
             cuisine: true,
             difficulty: true,
             servings: true,
+            caloriesPerServing: true,
+            proteinG: true,
+            carbsG: true,
+            fatG: true,
             ingredients: { select: { name: true } }
           }
         }
@@ -45,7 +49,13 @@ export async function GET() {
     }),
     prisma.userPreferences.findUnique({
       where: { workspaceId },
-      select: { showGamification: true }
+      select: {
+        showGamification: true,
+        calorieGoal: true,
+        proteinGoalG: true,
+        carbsGoalG: true,
+        fatGoalG: true,
+      }
     })
   ]);
 
@@ -76,6 +86,8 @@ export async function GET() {
   const recipeCounts: Record<string, { title: string; count: number; ratings: number[] }> = {};
   const monthlyActivity: Record<string, number> = {};
   const cookDateSet = new Set<string>();
+  // Per-day macro accumulation for nutrition averages
+  const dayMacros: Record<string, { cals: number; protein: number; carbs: number; fat: number; hasCals: boolean }> = {};
 
   for (const log of cookLogs) {
     const cookedOn = new Date(log.cookedOn);
@@ -104,7 +116,19 @@ export async function GET() {
     monthlyActivity[key] = (monthlyActivity[key] || 0) + 1;
 
     // Cook dates for streak
-    cookDateSet.add(cookedOn.toISOString().split("T")[0]);
+    const dateKey = cookedOn.toISOString().split("T")[0];
+    cookDateSet.add(dateKey);
+
+    // Nutrition per day (scale by actual servings cooked vs recipe default)
+    const r = log.recipe;
+    if (r.servings > 0) {
+      const scale = (log.servedTo ?? r.servings) / r.servings;
+      if (!dayMacros[dateKey]) dayMacros[dateKey] = { cals: 0, protein: 0, carbs: 0, fat: 0, hasCals: false };
+      if (r.caloriesPerServing != null) { dayMacros[dateKey].cals    += Math.round(r.caloriesPerServing * scale); dayMacros[dateKey].hasCals = true; }
+      if (r.proteinG != null)           { dayMacros[dateKey].protein += Math.round(r.proteinG * scale); }
+      if (r.carbsG   != null)           { dayMacros[dateKey].carbs   += Math.round(r.carbsG   * scale); }
+      if (r.fatG     != null)           { dayMacros[dateKey].fat     += Math.round(r.fatG     * scale); }
+    }
 
     // Cost per meal (ingredients now included in cookLogs query)
     let recipeCost = 0;
@@ -118,6 +142,13 @@ export async function GET() {
       costedMeals++;
     }
   }
+
+  // Avg daily macros across days that have calorie data
+  const daysWithCals = Object.values(dayMacros).filter(d => d.hasCals);
+  const avgDailyCalories = daysWithCals.length > 0 ? Math.round(daysWithCals.reduce((s, d) => s + d.cals, 0) / daysWithCals.length) : null;
+  const avgDailyProteinG = daysWithCals.length > 0 ? Math.round(daysWithCals.reduce((s, d) => s + d.protein, 0) / daysWithCals.length) : null;
+  const avgDailyCarbsG   = daysWithCals.length > 0 ? Math.round(daysWithCals.reduce((s, d) => s + d.carbs, 0) / daysWithCals.length) : null;
+  const avgDailyFatG     = daysWithCals.length > 0 ? Math.round(daysWithCals.reduce((s, d) => s + d.fat, 0) / daysWithCals.length) : null;
 
   const totalMeals = cookLogs.length;
   const avgRating = totalMeals > 0 ? ratingSum / totalMeals : 0;
@@ -205,6 +236,18 @@ export async function GET() {
     monthlyActivity,
     techniqueStats,
     comfortDistribution,
-    showGamification: prefsRow?.showGamification ?? false
+    showGamification: prefsRow?.showGamification ?? false,
+    nutrition: {
+      avgDailyCalories,
+      avgDailyProteinG,
+      avgDailyCarbsG,
+      avgDailyFatG,
+      goals: {
+        calorieGoal:  prefsRow?.calorieGoal  ?? null,
+        proteinGoalG: prefsRow?.proteinGoalG ?? null,
+        carbsGoalG:   prefsRow?.carbsGoalG   ?? null,
+        fatGoalG:     prefsRow?.fatGoalG     ?? null,
+      }
+    }
   });
 }

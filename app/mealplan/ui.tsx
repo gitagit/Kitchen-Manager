@@ -3,6 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { normName } from "@/lib/normalize";
 
+type PlanRecipe = {
+  title: string;
+  servings: number;
+  caloriesPerServing: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+};
+
 type MealPlan = {
   id: string;
   date: string;
@@ -10,7 +19,29 @@ type MealPlan = {
   recipeId: string | null;
   notes: string | null;
   servings?: number | null;
+  recipe?: PlanRecipe | null;
 };
+
+type NutritionGoals = {
+  calorieGoal:  number | null;
+  proteinGoalG: number | null;
+  carbsGoalG:   number | null;
+  fatGoalG:     number | null;
+};
+
+function computeDayMacros(dayPlans: MealPlan[]): { cals: number; protein: number; carbs: number; fat: number } | null {
+  let cals = 0, protein = 0, carbs = 0, fat = 0, hasCals = false;
+  for (const p of dayPlans) {
+    const r = p.recipe;
+    if (!r || r.servings <= 0) continue;
+    const scale = (p.servings ?? r.servings) / r.servings;
+    if (r.caloriesPerServing != null) { cals    += Math.round(r.caloriesPerServing * scale); hasCals = true; }
+    if (r.proteinG != null)           { protein += Math.round(r.proteinG * scale); }
+    if (r.carbsG   != null)           { carbs   += Math.round(r.carbsG   * scale); }
+    if (r.fatG     != null)           { fat     += Math.round(r.fatG     * scale); }
+  }
+  return hasCals ? { cals, protein, carbs, fat } : null;
+}
 
 type Recipe = {
   id: string;
@@ -52,6 +83,7 @@ export default function MealPlanClient() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [showBatchPrep, setShowBatchPrep] = useState(false);
+  const [goals, setGoals] = useState<NutritionGoals>({ calorieGoal: null, proteinGoalG: null, carbsGoalG: null, fatGoalG: null });
 
   // Modal state for editing a slot
   const [editingSlot, setEditingSlot] = useState<{ date: Date; slot: string } | null>(null);
@@ -99,6 +131,15 @@ export default function MealPlanClient() {
 
   useEffect(() => {
     fetchRecipes();
+    fetch("/api/preferences")
+      .then(r => r.json())
+      .then(d => setGoals({
+        calorieGoal:  d.calorieGoal  ?? null,
+        proteinGoalG: d.proteinGoalG ?? null,
+        carbsGoalG:   d.carbsGoalG   ?? null,
+        fatGoalG:     d.fatGoalG     ?? null,
+      }))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -278,6 +319,89 @@ export default function MealPlanClient() {
           <span>Loading...</span>
         </div>
       )}
+
+      {/* Weekly Nutrition Summary */}
+      {(() => {
+        const dayMacrosList = weekDates.map(d => {
+          const dayPlans = plans.filter(p => p.date.startsWith(formatDate(d)) && p.recipeId);
+          return computeDayMacros(dayPlans);
+        });
+        const hasAnyData = dayMacrosList.some(m => m !== null);
+        if (!hasAnyData) return null;
+
+        const macroRows: { label: string; key: "cals" | "protein" | "carbs" | "fat"; unit: string; goal: number | null }[] = [
+          { label: "Calories", key: "cals",    unit: "kcal", goal: goals.calorieGoal },
+          { label: "Protein",  key: "protein", unit: "g",    goal: goals.proteinGoalG },
+          { label: "Carbs",    key: "carbs",   unit: "g",    goal: goals.carbsGoalG },
+          { label: "Fat",      key: "fat",     unit: "g",    goal: goals.fatGoalG },
+        ];
+
+        const weekTotals = dayMacrosList.reduce<{ cals: number; protein: number; carbs: number; fat: number }>(
+          (acc, d) => d ? { cals: acc.cals + d.cals, protein: acc.protein + d.protein, carbs: acc.carbs + d.carbs, fat: acc.fat + d.fat } : acc,
+          { cals: 0, protein: 0, carbs: 0, fat: 0 }
+        );
+
+        const daysWithData = dayMacrosList.filter(d => d !== null).length;
+
+        return (
+          <div className="card" style={{ marginTop: 0 }}>
+            <h3 style={{ margin: "0 0 12px 0", fontSize: 15 }}>This Week&apos;s Nutrition</h3>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: "4px 8px", width: 70, opacity: 0.6, fontWeight: 500 }}></th>
+                    {weekDates.map((d, i) => (
+                      <th key={i} style={{ textAlign: "center", padding: "4px 8px", minWidth: 72, opacity: 0.7, fontWeight: 500 }}>
+                        {DAY_NAMES[d.getDay()]}
+                      </th>
+                    ))}
+                    <th style={{ textAlign: "center", padding: "4px 8px", minWidth: 72, opacity: 0.7, fontWeight: 500 }}>Week</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {macroRows.map(({ label, key, unit }) => (
+                    <tr key={label}>
+                      <td style={{ padding: "4px 8px", opacity: 0.65, whiteSpace: "nowrap" }}>{label}</td>
+                      {dayMacrosList.map((m, i) => (
+                        <td key={i} style={{ textAlign: "center", padding: "4px 8px" }}>
+                          {m ? `${m[key]}${unit === "kcal" ? "" : "g"}` : <span style={{ opacity: 0.25 }}>—</span>}
+                        </td>
+                      ))}
+                      <td style={{ textAlign: "center", padding: "4px 8px", fontWeight: 500 }}>
+                        {daysWithData > 0 ? `${weekTotals[key]}${unit === "kcal" ? "" : "g"}` : <span style={{ opacity: 0.25 }}>—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Weekly progress bars (only shown when goals are set) */}
+            {macroRows.some(r => r.goal != null) && (
+              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                {macroRows.filter(r => r.goal != null).map(({ label, key, unit, goal }) => {
+                  const weekGoal = goal! * 7;
+                  const total = weekTotals[key];
+                  const pct = Math.min(100, Math.round((total / weekGoal) * 100));
+                  const color = pct >= 90 ? "rgba(100,200,100,0.7)" : "rgba(100,150,255,0.7)";
+                  return (
+                    <div key={label}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3, opacity: 0.8 }}>
+                        <span>{label}</span>
+                        <span>{total}{unit === "kcal" ? " kcal" : "g"} / {weekGoal}{unit === "kcal" ? " kcal" : "g"} weekly goal · {pct}%</span>
+                      </div>
+                      <div style={{ height: 6, borderRadius: 3, background: "rgba(127,127,127,0.15)", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 3, transition: "width 0.3s" }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Edit Modal */}
       {editingSlot && (

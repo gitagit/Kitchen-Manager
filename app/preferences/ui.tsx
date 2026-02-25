@@ -44,6 +44,10 @@ type Prefs = {
   wantVariety: boolean;
   wantGrowth: boolean;
   showGamification: boolean;
+  calorieGoal:  number | null;
+  proteinGoalG: number | null;
+  carbsGoalG:   number | null;
+  fatGoalG:     number | null;
 };
 
 export default function PreferencesClient() {
@@ -57,9 +61,17 @@ export default function PreferencesClient() {
     wantVariety: true,
     wantGrowth: false,
     showGamification: false,
+    calorieGoal:  null,
+    proteinGoalG: null,
+    carbsGoalG:   null,
+    fatGoalG:     null,
   });
   const [defaultServingsStr, setDefaultServingsStr] = useState("2");
   const [maxTimeStr, setMaxTimeStr] = useState("45");
+  const [calorieGoalStr,  setCalorieGoalStr]  = useState("");
+  const [proteinGoalStr,  setProteinGoalStr]  = useState("");
+  const [carbsGoalStr,    setCarbsGoalStr]    = useState("");
+  const [fatGoalStr,      setFatGoalStr]      = useState("");
   const [dietaryInput, setDietaryInput] = useState("");
   const [cuisineInput, setCuisineInput] = useState("");
   const [loading, setLoading] = useState(true);
@@ -93,6 +105,10 @@ export default function PreferencesClient() {
         setMaxTimeStr(String(data.defaultMaxTimeMin));
         setDietaryInput(data.dietaryTagsExclude.join(", "));
         setCuisineInput(data.cuisinesExclude.join(", "));
+        setCalorieGoalStr(data.calorieGoal  != null ? String(data.calorieGoal)  : "");
+        setProteinGoalStr(data.proteinGoalG != null ? String(data.proteinGoalG) : "");
+        setCarbsGoalStr(  data.carbsGoalG   != null ? String(data.carbsGoalG)   : "");
+        setFatGoalStr(    data.fatGoalG     != null ? String(data.fatGoalG)     : "");
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -115,10 +131,15 @@ export default function PreferencesClient() {
     setSaving(true);
     setStatus("idle");
     try {
+      const parseGoal = (s: string) => { const n = parseInt(s, 10); return (!isNaN(n) && n > 0) ? n : null; };
       const body = {
         ...prefs,
         dietaryTagsExclude: parseTags(dietaryInput),
         cuisinesExclude: parseTags(cuisineInput),
+        calorieGoal:  parseGoal(calorieGoalStr),
+        proteinGoalG: parseGoal(proteinGoalStr),
+        carbsGoalG:   parseGoal(carbsGoalStr),
+        fatGoalG:     parseGoal(fatGoalStr),
       };
       const res = await fetch("/api/preferences", {
         method: "PUT",
@@ -132,6 +153,10 @@ export default function PreferencesClient() {
         setMaxTimeStr(String(saved.defaultMaxTimeMin));
         setDietaryInput(saved.dietaryTagsExclude.join(", "));
         setCuisineInput(saved.cuisinesExclude.join(", "));
+        setCalorieGoalStr(saved.calorieGoal  != null ? String(saved.calorieGoal)  : "");
+        setProteinGoalStr(saved.proteinGoalG != null ? String(saved.proteinGoalG) : "");
+        setCarbsGoalStr(  saved.carbsGoalG   != null ? String(saved.carbsGoalG)   : "");
+        setFatGoalStr(    saved.fatGoalG     != null ? String(saved.fatGoalG)     : "");
         setStatus("saved");
         setTimeout(() => setStatus("idle"), 3000);
       } else {
@@ -273,6 +298,34 @@ export default function PreferencesClient() {
               style={{ maxWidth: 80 }}
             />
           </label>
+        </div>
+      </section>
+
+      {/* Daily Nutrition Goals */}
+      <section className="card">
+        <h3 style={{ margin: "0 0 6px 0" }}>Daily Nutrition Goals</h3>
+        <p style={{ margin: "0 0 14px 0", fontSize: 13, opacity: 0.65 }}>
+          Optional. Leave blank for any macro you don&apos;t want to track. Used for progress bars in the meal plan and stats views.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px" }}>
+          {[
+            { label: "Calories",  unit: "kcal/day", val: calorieGoalStr,  set: setCalorieGoalStr },
+            { label: "Protein",   unit: "g/day",    val: proteinGoalStr,  set: setProteinGoalStr },
+            { label: "Carbs",     unit: "g/day",    val: carbsGoalStr,    set: setCarbsGoalStr },
+            { label: "Fat",       unit: "g/day",    val: fatGoalStr,      set: setFatGoalStr },
+          ].map(({ label, unit, val, set }) => (
+            <label key={label}>
+              <span style={{ display: "block", fontSize: 13, marginBottom: 4 }}>{label} <span style={{ opacity: 0.5 }}>({unit})</span></span>
+              <input
+                type="number"
+                min={1}
+                value={val}
+                onChange={e => set(e.target.value)}
+                placeholder="—"
+                style={{ width: "100%", maxWidth: 140 }}
+              />
+            </label>
+          ))}
         </div>
       </section>
 

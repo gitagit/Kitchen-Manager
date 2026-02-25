@@ -32,7 +32,19 @@ export async function GET(req: Request) {
 
   const plans = await prisma.mealPlan.findMany({
     where,
-    orderBy: [{ date: "asc" }, { slot: "asc" }]
+    orderBy: [{ date: "asc" }, { slot: "asc" }],
+    include: {
+      recipe: {
+        select: {
+          title: true,
+          servings: true,
+          caloriesPerServing: true,
+          proteinG: true,
+          carbsG: true,
+          fatG: true,
+        }
+      }
+    }
   });
 
   return NextResponse.json({ plans });

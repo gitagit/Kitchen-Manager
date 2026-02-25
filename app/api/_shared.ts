@@ -44,6 +44,10 @@ export const UserPreferencesSchema = z.object({
   wantVariety: z.boolean().optional(),
   wantGrowth: z.boolean().optional(),
   showGamification: z.boolean().optional(),
+  calorieGoal:  z.number().int().positive().nullable().optional(),
+  proteinGoalG: z.number().int().positive().nullable().optional(),
+  carbsGoalG:   z.number().int().positive().nullable().optional(),
+  fatGoalG:     z.number().int().positive().nullable().optional(),
 });
 
 export function cleanName(name: string): string {
