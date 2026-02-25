@@ -115,11 +115,17 @@ export default function InventoryClient() {
 
   // UI collapse state
   const [showImport, setShowImport] = useState(false);
-  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem("inventory-collapsed-cats");
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
   function toggleCat(cat: string) {
     setCollapsedCats(prev => {
       const next = new Set(prev);
       next.has(cat) ? next.delete(cat) : next.add(cat);
+      try { localStorage.setItem("inventory-collapsed-cats", JSON.stringify(Array.from(next))); } catch {}
       return next;
     });
   }
