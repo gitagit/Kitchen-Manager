@@ -154,6 +154,7 @@ export default function InventoryClient() {
       if (!res.ok) throw new Error("Failed to load inventory");
       const data = await res.json();
       setItems(data.items);
+      if (data.truncated) setToast({ message: `Showing first 500 of ${data.total} items. Contact support to enable full pagination.`, type: "info" });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : "Failed to load inventory", type: "error" });
     } finally {

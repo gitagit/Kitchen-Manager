@@ -38,21 +38,27 @@ const RecipeSchema = z.object({
   fatG: z.number().int().nonnegative().optional()
 });
 
+const RECIPE_LIMIT = 200;
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = session.user;
   if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
 
-  const recipes = await prisma.recipe.findMany({
-    where: { workspaceId },
-    orderBy: { title: "asc" },
-    include: {
-      ingredients: true,
-      cookLogs: { orderBy: { cookedOn: "desc" } },
-      techniques: { include: { technique: true } }
-    }
-  });
+  const [recipes, total] = await Promise.all([
+    prisma.recipe.findMany({
+      where: { workspaceId },
+      orderBy: { title: "asc" },
+      take: RECIPE_LIMIT,
+      include: {
+        ingredients: true,
+        cookLogs: { orderBy: { cookedOn: "desc" } },
+        techniques: { include: { technique: true } }
+      }
+    }),
+    prisma.recipe.count({ where: { workspaceId } })
+  ]);
 
   // Parse JSON string fields to arrays
   const parsed = recipes.map(r => ({
@@ -66,7 +72,7 @@ export async function GET() {
     }))
   }));
 
-  return NextResponse.json({ recipes: parsed });
+  return NextResponse.json({ recipes: parsed, total, truncated: total > RECIPE_LIMIT });
 }
 
 export async function POST(req: Request) {

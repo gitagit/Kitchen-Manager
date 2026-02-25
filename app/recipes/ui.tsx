@@ -274,6 +274,7 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
       if (!res.ok) throw new Error("Failed to load recipes");
       const data = await res.json();
       setRecipes(data.recipes);
+      if (data.truncated) setToast({ message: `Showing first 200 of ${data.total} recipes.`, type: "info" });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : "Failed to load recipes", type: "error" });
     } finally {

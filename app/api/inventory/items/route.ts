@@ -6,18 +6,24 @@ import { normName } from "@/lib/normalize";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+const ITEM_LIMIT = 500;
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { workspaceId } = session.user;
   if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
 
-  const items = await prisma.item.findMany({
-    where: { workspaceId },
-    orderBy: { name: "asc" },
-    include: { batches: { orderBy: { createdAt: "desc" } } }
-  });
-  return NextResponse.json({ items });
+  const [items, total] = await Promise.all([
+    prisma.item.findMany({
+      where: { workspaceId },
+      orderBy: { name: "asc" },
+      take: ITEM_LIMIT,
+      include: { batches: { orderBy: { createdAt: "desc" } } }
+    }),
+    prisma.item.count({ where: { workspaceId } })
+  ]);
+  return NextResponse.json({ items, total, truncated: total > ITEM_LIMIT });
 }
 
 export async function POST(req: Request) {
