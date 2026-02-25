@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function RegisterForm() {
+export default function RegisterForm({ hasGoogle, hasGithub }: { hasGoogle: boolean; hasGithub: boolean }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,6 +45,7 @@ export default function RegisterForm() {
   }
 
   return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <input
         type="text"
@@ -95,5 +96,34 @@ export default function RegisterForm() {
         </small>
       </p>
     </form>
+
+    {(hasGoogle || hasGithub) && (
+      <>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0" }}>
+          <div style={{ flex: 1, height: 1, background: "rgba(127,127,127,0.2)" }} />
+          <small className="muted">or</small>
+          <div style={{ flex: 1, height: 1, background: "rgba(127,127,127,0.2)" }} />
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {hasGoogle && (
+            <button
+              onClick={() => signIn("google", { callbackUrl: "/" })}
+              style={{ background: "none", border: "1px solid rgba(127,127,127,0.3)" }}
+            >
+              Continue with Google
+            </button>
+          )}
+          {hasGithub && (
+            <button
+              onClick={() => signIn("github", { callbackUrl: "/" })}
+              style={{ background: "none", border: "1px solid rgba(127,127,127,0.3)" }}
+            >
+              Continue with GitHub
+            </button>
+          )}
+        </div>
+      </>
+    )}
+    </div>
   );
 }

@@ -4,6 +4,9 @@ import RegisterForm from "./RegisterForm";
 export const metadata = { title: "Create account — Mise en App" };
 
 export default function RegisterPage() {
+  const hasGoogle = !!(process.env.GOOGLE_CLIENT_ID);
+  const hasGithub = !!(process.env.GITHUB_CLIENT_ID);
+
   return (
     <div style={{ maxWidth: 360, margin: "80px auto", padding: "0 16px" }}>
       <div className="card">
@@ -12,7 +15,7 @@ export default function RegisterPage() {
           <small className="muted">Create your account to get started.</small>
         </p>
         <Suspense>
-          <RegisterForm />
+          <RegisterForm hasGoogle={hasGoogle} hasGithub={hasGithub} />
         </Suspense>
       </div>
     </div>
