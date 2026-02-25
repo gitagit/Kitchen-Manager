@@ -18,7 +18,7 @@ export const ItemLocationSchema = z.enum(ItemLocations);
 export const GroceryChannelSchema = z.enum(GroceryChannels);
 
 export const CreateItemSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).max(200),
   category: ItemCategorySchema,
   location: ItemLocationSchema,
   staple: z.boolean().optional(),
@@ -28,7 +28,7 @@ export const CreateItemSchema = z.object({
 
 export const CreateBatchSchema = z.object({
   itemId: z.string().min(1),
-  quantityText: z.string().min(1),
+  quantityText: z.string().min(1).max(100),
   expiresOn: z.string().datetime().optional(),
   purchasedOn: z.string().datetime().optional(),
   costCents: z.number().int().nonnegative().optional()

@@ -15,6 +15,7 @@ type Result = {
   complexity?: string;
   techniques?: string[];
   costPerServing?: number | null;
+  costCoverage?: { matched: number; total: number } | null;
 };
 
 type LogForm = {
@@ -666,16 +667,26 @@ export default function SuggestClient() {
               <h3 style={{margin:"0 0 4px 0"}}>
                 {idx === 0 && "🏆 "}{r.title}
               </h3>
-              <small className="muted">
-                Score: {r.score} • {r.why.join(" • ")}
-              </small>
+              <div style={{marginTop:4, display:"flex", flexWrap:"wrap", gap:4}}>
+                {r.why.map(w => (
+                  <span key={w} style={{fontSize:"0.72em", padding:"2px 6px", borderRadius:4, background:"rgba(127,127,127,0.1)", color:"inherit", opacity:0.75}}>{w}</span>
+                ))}
+              </div>
               {(r.cuisine || r.complexity || r.techniques?.length || (r.costPerServing != null && r.costPerServing > 0)) && (
                 <div style={{marginTop:4}}>
                   {r.cuisine && <span className="tag">{r.cuisine}</span>}
                   {r.complexity && <span className="tag">{r.complexity.toLowerCase()}</span>}
                   {r.techniques?.map(t => <span key={t} className="tag tech">{t}</span>)}
                   {r.costPerServing != null && r.costPerServing > 0 && (
-                    <span className="tag cost">~${(r.costPerServing / 100).toFixed(2)}/serving</span>
+                    <span
+                      className="tag cost"
+                      title={r.costCoverage ? `Based on ${r.costCoverage.matched} of ${r.costCoverage.total} priced ingredients` : undefined}
+                    >
+                      ~${(r.costPerServing / 100).toFixed(2)}/serving
+                      {r.costCoverage && r.costCoverage.matched < r.costCoverage.total && (
+                        <span style={{opacity:0.6}}> ({r.costCoverage.matched}/{r.costCoverage.total} priced)</span>
+                      )}
+                    </span>
                   )}
                 </div>
               )}

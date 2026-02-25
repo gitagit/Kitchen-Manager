@@ -5,6 +5,8 @@
 export function normName(s: string): string {
   return s
     .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // strip diacritics: café → cafe
     .toLowerCase()
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");

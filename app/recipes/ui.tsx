@@ -638,13 +638,17 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
     setInvUpdating(true);
     try {
       const changed = invMatches.filter(m => matchQtys[m.batchId] !== m.currentQty);
-      await Promise.all(changed.map(m =>
+      const results = await Promise.all(changed.map(m =>
         fetch("/api/inventory/batches", {
           method: "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ batchId: m.batchId, quantityText: matchQtys[m.batchId] })
-        })
+        }).then(r => r.json())
       ));
+      const deleted = results.filter(r => r.deleted).length;
+      if (deleted > 0) {
+        setToast({ message: `${deleted} batch${deleted !== 1 ? "es" : ""} marked as used up and removed`, type: "info" });
+      }
     } catch {
       setToast({ message: "Failed to update inventory", type: "error" });
     } finally {

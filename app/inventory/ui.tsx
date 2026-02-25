@@ -830,7 +830,10 @@ Freezer:
                   <td>
                     {it.name}
                     {isStale(it.lastConfirmed, it.category) && (
-                      <span style={{ marginLeft: 6, fontSize: "0.7em", fontWeight: 600, color: "#c90", border: "1px solid #c90", borderRadius: 4, padding: "1px 5px" }}>stale</span>
+                      <span
+                        title={`${it.category} items are flagged after ${STALE_DAYS[it.category] ?? 14} days without confirmation`}
+                        style={{ marginLeft: 6, fontSize: "0.7em", fontWeight: 600, color: "#c90", border: "1px solid #c90", borderRadius: 4, padding: "1px 5px", cursor: "help" }}
+                      >stale</span>
                     )}
                     {it.parLevel != null && it.batches.length < it.parLevel && (
                       <span style={{ marginLeft: 6, fontSize: "0.7em", fontWeight: 600, color: "#55a", border: "1px solid #88d", borderRadius: 4, padding: "1px 5px" }} title={`${it.batches.length} of ${it.parLevel} batches`}>↓ par</span>
