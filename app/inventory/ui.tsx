@@ -447,6 +447,7 @@ export default function InventoryClient() {
       });
       if (!res.ok) throw new Error("Failed to confirm item");
       await refresh();
+      setToast({ message: "Item confirmed — stale timer reset", type: "success" });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : "Failed to confirm item", type: "error" });
     }
@@ -828,7 +829,9 @@ Freezer:
                     </span>
                   </td>
                   <td>
-                    <button onClick={() => confirmItem(it.id)} title="Confirm still in stock" style={{marginRight: 4, padding: "2px 8px", color: "#3a3"}}>✓</button>
+                    {isStale(it.lastConfirmed, it.category) && (
+                      <button onClick={() => confirmItem(it.id)} title="Still in stock — reset stale timer" style={{marginRight: 4, padding: "2px 8px", color: "#3a3"}}>✓ Still here</button>
+                    )}
                     <button onClick={() => editItem(it)} style={{marginRight: 4, padding: "2px 8px"}}>Edit</button>
                     <button onClick={() => promptDelete(it.id, it.name)} style={{padding: "2px 8px", color: "#c44"}}>Delete</button>
                   </td>
