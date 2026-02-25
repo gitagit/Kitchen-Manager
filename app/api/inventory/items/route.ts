@@ -56,7 +56,8 @@ export async function POST(req: Request) {
       location: item.location,
       staple: item.staple ?? false,
       parLevel: item.parLevel ?? null,
-      defaultCostCents: item.defaultCostCents ?? null
+      defaultCostCents: item.defaultCostCents ?? null,
+      lastConfirmed: new Date()
     }
   });
 

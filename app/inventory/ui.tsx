@@ -55,11 +55,24 @@ function getExpirationStyle(status: ExpirationStatus): React.CSSProperties {
   }
 }
 
-const STALE_DAYS = 14;
-function isStale(lastConfirmed: string | null): boolean {
-  if (!lastConfirmed) return true;
+const STALE_DAYS: Record<string, number | null> = {
+  PRODUCE:   5,
+  MEAT:      4,
+  DAIRY:     7,
+  FROZEN:    90,
+  PANTRY:    30,
+  CONDIMENT: 60,
+  SPICE:     null, // never stale
+  BAKING:    60,
+  BEVERAGE:  14,
+  OTHER:     14,
+};
+function isStale(lastConfirmed: string | null, category?: string): boolean {
+  const days = category ? (STALE_DAYS[category] ?? 14) : 14;
+  if (days === null) return false;
+  if (!lastConfirmed) return false; // newly added = not yet stale
   const diffMs = Date.now() - new Date(lastConfirmed).getTime();
-  return diffMs > STALE_DAYS * 24 * 60 * 60 * 1000;
+  return diffMs > days * 24 * 60 * 60 * 1000;
 }
 
 function formatExpiration(expiresOn: string | null): string {
@@ -447,7 +460,7 @@ export default function InventoryClient() {
     }).length;
   }, [items]);
 
-  const staleCount = useMemo(() => items.filter(it => isStale(it.lastConfirmed)).length, [items]);
+  const staleCount = useMemo(() => items.filter(it => isStale(it.lastConfirmed, it.category)).length, [items]);
   const belowParCount = useMemo(() => items.filter(it => it.parLevel != null && it.batches.length < it.parLevel).length, [items]);
 
   const filtered = useMemo(() => {
@@ -459,7 +472,7 @@ export default function InventoryClient() {
         const status = getExpirationStatus(it.batches[0]?.expiresOn ?? null);
         if (status !== "expired" && status !== "expiring-soon") return false;
       }
-      if (filterStale && !isStale(it.lastConfirmed)) return false;
+      if (filterStale && !isStale(it.lastConfirmed, it.category)) return false;
       if (filterBelowPar && !(it.parLevel != null && it.batches.length < it.parLevel)) return false;
       return true;
     });
@@ -787,7 +800,7 @@ Freezer:
                 <tr key={it.id}>
                   <td>
                     {it.name}
-                    {isStale(it.lastConfirmed) && (
+                    {isStale(it.lastConfirmed, it.category) && (
                       <span style={{ marginLeft: 6, fontSize: "0.7em", fontWeight: 600, color: "#c90", border: "1px solid #c90", borderRadius: 4, padding: "1px 5px" }}>stale</span>
                     )}
                     {it.parLevel != null && it.batches.length < it.parLevel && (

@@ -103,7 +103,8 @@ export async function POST(req: Request) {
         workspaceId,
         name: normalizedName,
         category: currentCategory,
-        location: loc
+        location: loc,
+        lastConfirmed: new Date()
       }
     });
 
