@@ -41,9 +41,10 @@ function parseSteps(instructions: string): string[] {
   return instructions.split(/\n\n+/).map(s => s.trim()).filter(Boolean);
 }
 
-export default async function PublicRecipePage({ params }: { params: { id: string } }) {
+export default async function PublicRecipePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const baseUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-  const res = await fetch(`${baseUrl}/api/recipes/${params.id}/public`, { cache: "no-store" });
+  const res = await fetch(`${baseUrl}/api/recipes/${id}/public`, { cache: "no-store" });
 
   if (!res.ok) notFound();
 
