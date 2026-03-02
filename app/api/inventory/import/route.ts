@@ -20,6 +20,7 @@ function headingToCategory(h: string): string {
   if (n.includes("dairy")) return "DAIRY";
   if (n.includes("condiment") || n.includes("sauce")) return "CONDIMENT";
   if (n.includes("pantry") || n.includes("canned") || n.includes("dry")) return "PANTRY";
+  if (n.includes("prepared") || n.includes("leftover") || n.includes("meal prep")) return "PREPARED";
   return "OTHER";
 }
 
@@ -36,6 +37,7 @@ function categoryToDefaultLocation(c: string): string {
     case "MEAT":
     case "PRODUCE":
     case "DAIRY":
+    case "PREPARED":
       return "FRIDGE";
     case "SPICE":
     case "CONDIMENT":

@@ -74,13 +74,14 @@ Report any item you can identify with reasonable confidence — partial labels, 
 
 For each item use:
 - name: lowercase, specific (e.g. "olive oil", "canned chickpeas", "frozen peas", "sharp cheddar")
-- category: PANTRY | SPICE | SEAFOOD | PRODUCE | MEAT | DAIRY | CONDIMENT | BAKING | BEVERAGE | OTHER
+- category: PANTRY | SPICE | SEAFOOD | PRODUCE | MEAT | DAIRY | CONDIMENT | BAKING | BEVERAGE | PREPARED | OTHER
   - PANTRY: canned goods, dried goods, oils, vinegar, pasta, rice, flour, sugar, nuts, broth
   - SPICE: individual spices, herbs, seasoning blends, salt, pepper
   - SEAFOOD: fish, shellfish, shrimp, salmon, tuna, crab, lobster, scallops — fresh, frozen, or canned
   - CONDIMENT: ketchup, mustard, mayo, hot sauce, soy sauce, salad dressing, jam
   - DAIRY: milk, cheese, yogurt, butter, cream, eggs
   - BAKING: baking powder, baking soda, yeast, chocolate chips, vanilla extract, cocoa
+  - PREPARED: leftovers, meal-prepped dishes, ready-to-eat items stored in containers (e.g. "overnight oats", "leftover pasta", "meal prep bowls")
 - location: PANTRY | FRIDGE | FREEZER | COUNTER | OTHER
   - Assign based on where the item BELONGS, not where it appears in the photo.
   - Items sitting on a counter still belong in their proper storage location (e.g. olive oil → PANTRY, fresh salmon → FRIDGE, ice cream → FREEZER).
@@ -110,7 +111,7 @@ Deduplicate across images. Aim to identify as many items as possible.`;
                   type: "object",
                   properties: {
                     name:         { type: "string", description: "Lowercase specific item name" },
-                    category:     { type: "string", enum: ["PANTRY","SPICE","SEAFOOD","PRODUCE","MEAT","DAIRY","CONDIMENT","BAKING","BEVERAGE","OTHER"] },
+                    category:     { type: "string", enum: ["PANTRY","SPICE","SEAFOOD","PRODUCE","MEAT","DAIRY","CONDIMENT","BAKING","BEVERAGE","PREPARED","OTHER"] },
                     location:     { type: "string", enum: ["PANTRY","FRIDGE","FREEZER","COUNTER","OTHER"] },
                     quantityText: { type: "string", description: "Best estimate of quantity" }
                   },

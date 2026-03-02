@@ -23,7 +23,7 @@ type ScannedItem = {
   keep: boolean;
 };
 
-const categories = ["PANTRY","SPICE","SEAFOOD","PRODUCE","MEAT","DAIRY","CONDIMENT","BAKING","BEVERAGE","OTHER"];
+const categories = ["PANTRY","SPICE","SEAFOOD","PRODUCE","MEAT","DAIRY","CONDIMENT","BAKING","BEVERAGE","PREPARED","OTHER"];
 const locations = ["PANTRY","FRIDGE","FREEZER","COUNTER","OTHER"];
 
 function formatCost(cents: number | null | undefined): string {
@@ -60,6 +60,7 @@ const STALE_DAYS: Record<string, number | null> = {
   PRODUCE:   5,
   MEAT:      4,
   DAIRY:     7,
+  PREPARED:  4,
   PANTRY:    30,
   CONDIMENT: 60,
   SPICE:     null, // never stale
