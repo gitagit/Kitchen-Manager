@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 
 // Recreate schemas for testing (in real app, these would be imported from _shared.ts)
-const ItemCategories = ["PANTRY", "SPICE", "FROZEN", "PRODUCE", "MEAT", "DAIRY", "CONDIMENT", "BAKING", "BEVERAGE", "OTHER"] as const;
+const ItemCategories = ["PANTRY", "SPICE", "SEAFOOD", "PRODUCE", "MEAT", "DAIRY", "CONDIMENT", "BAKING", "BEVERAGE", "OTHER"] as const;
 const ItemLocations = ["PANTRY", "FRIDGE", "FREEZER", "COUNTER", "OTHER"] as const;
 
 const ItemCategorySchema = z.enum(ItemCategories);

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { normName } from "@/lib/normalize";
 
 // Valid values (SQLite doesn't support enums, so we validate in code)
-export const ItemCategories = ["PANTRY", "SPICE", "FROZEN", "PRODUCE", "MEAT", "DAIRY", "CONDIMENT", "BAKING", "BEVERAGE", "OTHER"] as const;
+export const ItemCategories = ["PANTRY", "SPICE", "SEAFOOD", "PRODUCE", "MEAT", "DAIRY", "CONDIMENT", "BAKING", "BEVERAGE", "OTHER"] as const;
 export const ItemLocations = ["PANTRY", "FRIDGE", "FREEZER", "COUNTER", "OTHER"] as const;
 export const GroceryChannels = ["SHIP", "IN_PERSON", "EITHER"] as const;
 export const RecipeSources = ["PERSONAL", "FAMILY", "WEB", "COOKBOOK", "FRIEND"] as const;

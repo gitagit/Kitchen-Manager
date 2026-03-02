@@ -14,20 +14,26 @@ const schema = z.object({
 function headingToCategory(h: string): string {
   const n = normName(h);
   if (n.includes("spice")) return "SPICE";
-  if (n.includes("frozen") || n.includes("freezer")) return "FROZEN";
+  if (n.includes("seafood") || n.includes("fish")) return "SEAFOOD";
   if (n.includes("produce") || n.includes("veg") || n.includes("fruit")) return "PRODUCE";
-  if (n.includes("meat") || n.includes("seafood") || n.includes("protein")) return "MEAT";
+  if (n.includes("meat") || n.includes("protein")) return "MEAT";
   if (n.includes("dairy")) return "DAIRY";
   if (n.includes("condiment") || n.includes("sauce")) return "CONDIMENT";
   if (n.includes("pantry") || n.includes("canned") || n.includes("dry")) return "PANTRY";
   return "OTHER";
 }
 
+// Returns FREEZER for headings like "Frozen:", "Freezer:" so all items under that section
+// get the correct location regardless of category.
+function headingToLocationOverride(h: string): string | null {
+  const n = normName(h);
+  return n.includes("frozen") || n.includes("freezer") ? "FREEZER" : null;
+}
+
 function categoryToDefaultLocation(c: string): string {
   switch (c) {
-    case "FROZEN":
+    case "SEAFOOD":
     case "MEAT":
-      return "FREEZER";
     case "PRODUCE":
     case "DAIRY":
       return "FRIDGE";
@@ -62,15 +68,16 @@ export async function POST(req: Request) {
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
 
-  let currentHeading = "PANTRY";
   let currentCategory: string = "PANTRY";
+  let currentLocationOverride: string | null = null;
 
   let created = 0;
   for (const line of lines) {
     const headingMatch = line.match(/^([A-Za-z][A-Za-z \-\/]+):$/);
     if (headingMatch) {
-      currentHeading = headingMatch[1];
-      currentCategory = headingToCategory(currentHeading);
+      const heading = headingMatch[1];
+      currentCategory = headingToCategory(heading);
+      currentLocationOverride = headingToLocationOverride(heading);
       continue;
     }
 
@@ -94,7 +101,7 @@ export async function POST(req: Request) {
     const normalizedName = normName(name);
     if (!normalizedName) continue;
 
-    const loc = defaultLocation ?? categoryToDefaultLocation(currentCategory);
+    const loc = defaultLocation ?? currentLocationOverride ?? categoryToDefaultLocation(currentCategory);
 
     const item = await prisma.item.upsert({
       where: { workspaceId_name: { workspaceId, name: normalizedName } },

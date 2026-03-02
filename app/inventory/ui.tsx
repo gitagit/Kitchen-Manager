@@ -23,7 +23,7 @@ type ScannedItem = {
   keep: boolean;
 };
 
-const categories = ["PANTRY","SPICE","FROZEN","PRODUCE","MEAT","DAIRY","CONDIMENT","BAKING","BEVERAGE","OTHER"];
+const categories = ["PANTRY","SPICE","SEAFOOD","PRODUCE","MEAT","DAIRY","CONDIMENT","BAKING","BEVERAGE","OTHER"];
 const locations = ["PANTRY","FRIDGE","FREEZER","COUNTER","OTHER"];
 
 function formatCost(cents: number | null | undefined): string {
@@ -56,10 +56,10 @@ function getExpirationStyle(status: ExpirationStatus): React.CSSProperties {
 }
 
 const STALE_DAYS: Record<string, number | null> = {
+  SEAFOOD:   2,
   PRODUCE:   5,
   MEAT:      4,
   DAIRY:     7,
-  FROZEN:    90,
   PANTRY:    30,
   CONDIMENT: 60,
   SPICE:     null, // never stale
@@ -67,8 +67,11 @@ const STALE_DAYS: Record<string, number | null> = {
   BEVERAGE:  14,
   OTHER:     14,
 };
-function isStale(lastConfirmed: string | null, category?: string): boolean {
-  const days = category ? (STALE_DAYS[category] ?? 14) : 14;
+const FREEZER_STALE_DAYS = 90;
+
+function isStale(lastConfirmed: string | null, category?: string, location?: string): boolean {
+  // Frozen items share a single threshold regardless of category
+  const days = location === "FREEZER" ? FREEZER_STALE_DAYS : (category ? (STALE_DAYS[category] ?? 14) : 14);
   if (days === null) return false;
   if (!lastConfirmed) return false; // newly added = not yet stale
   const diffMs = Date.now() - new Date(lastConfirmed).getTime();
@@ -476,7 +479,7 @@ export default function InventoryClient() {
     }).length;
   }, [items]);
 
-  const staleCount = useMemo(() => items.filter(it => isStale(it.lastConfirmed, it.category)).length, [items]);
+  const staleCount = useMemo(() => items.filter(it => isStale(it.lastConfirmed, it.category, it.location)).length, [items]);
   const belowParCount = useMemo(() => items.filter(it => it.parLevel != null && it.batches.length < it.parLevel).length, [items]);
 
   const filtered = useMemo(() => {
@@ -488,7 +491,7 @@ export default function InventoryClient() {
         const status = getExpirationStatus(it.batches[0]?.expiresOn ?? null);
         if (status !== "expired" && status !== "expiring-soon") return false;
       }
-      if (filterStale && !isStale(it.lastConfirmed, it.category)) return false;
+      if (filterStale && !isStale(it.lastConfirmed, it.category, it.location)) return false;
       if (filterBelowPar && !(it.parLevel != null && it.batches.length < it.parLevel)) return false;
       return true;
     });
@@ -830,9 +833,9 @@ Freezer:
                 <tr key={it.id}>
                   <td>
                     {it.name}
-                    {isStale(it.lastConfirmed, it.category) && (
+                    {isStale(it.lastConfirmed, it.category, it.location) && (
                       <span
-                        title={`${it.category} items are flagged after ${STALE_DAYS[it.category] ?? 14} days without confirmation`}
+                        title={`${it.location === "FREEZER" ? "FREEZER" : it.category} items are flagged after ${it.location === "FREEZER" ? FREEZER_STALE_DAYS : (STALE_DAYS[it.category] ?? 14)} days without confirmation`}
                         style={{ marginLeft: 6, fontSize: "0.7em", fontWeight: 600, color: "#c90", border: "1px solid #c90", borderRadius: 4, padding: "1px 5px", cursor: "help" }}
                       >stale</span>
                     )}
@@ -861,7 +864,7 @@ Freezer:
                     </span>
                   </td>
                   <td>
-                    {isStale(it.lastConfirmed, it.category) && (
+                    {isStale(it.lastConfirmed, it.category, it.location) && (
                       <button onClick={() => confirmItem(it.id)} title="Still in stock — reset stale timer" style={{marginRight: 4, padding: "2px 8px", color: "#3a3"}}>✓ Still here</button>
                     )}
                     <button onClick={() => editItem(it)} style={{marginRight: 4, padding: "2px 8px"}}>Edit</button>
