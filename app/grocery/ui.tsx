@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Toast } from "@/app/components/Modal";
 
 type Recipe = { id: string; title: string; };
-type GroceryItem = { id: string; name: string; channel: "SHIP"|"IN_PERSON"|"EITHER"; quantityText?: string|null; reason: string; acquired: boolean; };
+type GroceryItem = { id: string; name: string; channel: "SHIP"|"IN_PERSON"|"EITHER"; quantityText?: string|null; reason: string; acquired: boolean; category?: string; };
+
+const STORE_SECTION_ORDER = ["PRODUCE","MEAT","SEAFOOD","DAIRY","BAKING","PANTRY","CONDIMENT","SPICE","BEVERAGE","PREPARED","OTHER"];
 
 export default function GroceryClient() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -116,6 +118,18 @@ export default function GroceryClient() {
   const inPerson = useMemo(()=>items.filter(i=>i.channel==="IN_PERSON" || i.channel==="EITHER"), [items]);
   const unacquiredCount = useMemo(()=>items.filter(i=>!i.acquired).length, [items]);
 
+  const inPersonBySection = useMemo(() => {
+    const groups = new Map<string, GroceryItem[]>();
+    for (const item of inPerson) {
+      const cat = item.category ?? "OTHER";
+      if (!groups.has(cat)) groups.set(cat, []);
+      groups.get(cat)!.push(item);
+    }
+    return STORE_SECTION_ORDER
+      .filter(cat => groups.has(cat))
+      .map(cat => ({ category: cat, items: groups.get(cat)! }));
+  }, [inPerson]);
+
   async function copyList(which: "SHIP"|"IN_PERSON") {
     const list = (which==="SHIP" ? ship : inPerson).map(i => `- ${i.name}`).join("\n");
     try {
@@ -181,7 +195,14 @@ export default function GroceryClient() {
           <button onClick={()=>copyList("IN_PERSON")} disabled={!inPerson.length}>Copy list</button>
         </div>
         {inPerson.length ? (
-          <ul>{inPerson.map(i => <li key={i.id}>{i.name} <small className="muted">({i.reason})</small></li>)}</ul>
+          inPersonBySection.map(({ category, items: sectionItems }) => (
+            <div key={category} style={{marginTop:12}}>
+              <p style={{margin:"0 0 4px", fontSize:12, fontWeight:600, opacity:0.5, textTransform:"uppercase", letterSpacing:"0.05em"}}>{category}</p>
+              <ul style={{margin:0}}>
+                {sectionItems.map(i => <li key={i.id}>{i.name} <small className="muted">({i.reason})</small></li>)}
+              </ul>
+            </div>
+          ))
         ) : <small className="muted">No in-person items yet. Generate a list above.</small>}
       </div>
 

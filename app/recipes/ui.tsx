@@ -1196,11 +1196,24 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                     )}
                   </div>
                 ) : (
-                  <div style={{marginTop:10}}>
+                  <div style={{marginTop:10, display:"flex", gap:8, flexWrap:"wrap"}}>
                     <button
                       onClick={(e) => { e.stopPropagation(); openLogForm(r.id); }}
                       style={{padding:"4px 12px", fontSize:13}}
                     >+ Log a Cook</button>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const url = `${window.location.origin}/r/${r.id}`;
+                        try {
+                          await navigator.clipboard.writeText(url);
+                          setToast({ message: "Share link copied to clipboard!", type: "success" });
+                        } catch {
+                          setToast({ message: `Share link: ${url}`, type: "info" });
+                        }
+                      }}
+                      style={{padding:"4px 12px", fontSize:13, opacity:0.65}}
+                    >Share</button>
                   </div>
                 )}
 

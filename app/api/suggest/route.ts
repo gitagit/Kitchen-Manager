@@ -43,13 +43,40 @@ export async function POST(req: Request) {
 
   const invNames = new Set(items.map((i) => normName(i.name)));
 
-  // naive expiring: any batch expiring within 5 days
+  // Items expiring within 5 days
   const soon = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
   const expiringNames = new Set(
     items
       .filter((i) => i.batches.some((b) => b.expiresOn && b.expiresOn <= soon))
       .map((i) => normName(i.name))
   );
+
+  // Stale items (mirrors STALE_DAYS in ui.tsx; FREEZER location never stale)
+  const STALE_DAYS: Record<string, number> = {
+    SEAFOOD: 2, PRODUCE: 5, MEAT: 4, DAIRY: 7, PREPARED: 4,
+    PANTRY: 30, CONDIMENT: 60, BAKING: 60, BEVERAGE: 14, OTHER: 14,
+  };
+  const FREEZER_STALE_DAYS = 90;
+
+  const urgentSeen = new Set<string>();
+  const urgentItems: { name: string; reason: "expiring" | "stale"; expiresOn?: string }[] = [];
+
+  for (const item of items) {
+    const soonBatch = item.batches.find((b) => b.expiresOn && b.expiresOn <= soon);
+    if (soonBatch) {
+      urgentItems.push({ name: item.name, reason: "expiring", expiresOn: soonBatch.expiresOn!.toISOString() });
+      urgentSeen.add(item.name);
+    }
+  }
+  for (const item of items) {
+    if (urgentSeen.has(item.name)) continue;
+    if (!item.lastConfirmed) continue;
+    const staleDays = item.location === "FREEZER" ? FREEZER_STALE_DAYS : (STALE_DAYS[item.category] ?? 14);
+    const diffMs = Date.now() - new Date(item.lastConfirmed).getTime();
+    if (diffMs > staleDays * 24 * 60 * 60 * 1000) {
+      urgentItems.push({ name: item.name, reason: "stale" });
+    }
+  }
 
   const recipes = await prisma.recipe.findMany({
     where: { workspaceId },
@@ -142,5 +169,5 @@ export async function POST(req: Request) {
     };
   });
 
-  return NextResponse.json({ results: withCost });
+  return NextResponse.json({ results: withCost, urgentItems });
 }

@@ -18,6 +18,8 @@ type Result = {
   costCoverage?: { matched: number; total: number } | null;
 };
 
+type UrgentItem = { name: string; reason: "expiring" | "stale"; expiresOn?: string };
+
 type LogForm = {
   recipeId: string;
   title: string;
@@ -80,9 +82,17 @@ export default function SuggestClient() {
   const [selectedTechniques, setSelectedTechniques] = useState<string[]>([]);
   
   const [results, setResults] = useState<Result[]>([]);
+  const [urgentItems, setUrgentItems] = useState<UrgentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [saveToast, setSaveToast] = useState<string | null>(null);
+
+  // Meal plan form state
+  const [mpForm, setMpForm] = useState<{ recipeId: string; title: string } | null>(null);
+  const [mpDate, setMpDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [mpSlot, setMpSlot] = useState<"breakfast" | "lunch" | "dinner">("dinner");
+  const [mpSaving, setMpSaving] = useState(false);
+  const [mpToast, setMpToast] = useState<string | null>(null);
 
   // Generate state
   const [generatedRecipes, setGeneratedRecipes] = useState<GeneratedRecipe[]>([]);
@@ -150,6 +160,7 @@ export default function SuggestClient() {
     });
     const data = await res.json();
     setResults(data.results ?? []);
+    setUrgentItems(data.urgentItems ?? []);
     setHasSearched(true);
     setLoading(false);
   }
@@ -210,6 +221,25 @@ export default function SuggestClient() {
       }
     } finally {
       setSavingIdx(prev => { const s = new Set(prev); s.delete(idx); return s; });
+    }
+  }
+
+  async function addToMealPlan() {
+    if (!mpForm) return;
+    setMpSaving(true);
+    try {
+      const res = await fetch("/api/mealplan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ date: mpDate, slot: mpSlot, recipeId: mpForm.recipeId })
+      });
+      if (res.ok) {
+        setMpToast(`"${mpForm.title}" added to ${mpSlot} on ${new Date(mpDate + "T12:00:00").toLocaleDateString()}`);
+        setMpForm(null);
+        setTimeout(() => setMpToast(null), 4000);
+      }
+    } finally {
+      setMpSaving(false);
     }
   }
 
@@ -652,6 +682,12 @@ export default function SuggestClient() {
         </div>
       )}
 
+      {mpToast && (
+        <div className="card" style={{background:"rgba(100,200,100,0.15)", marginTop:16, position:"sticky", top:60, zIndex:50}}>
+          📅 {mpToast}
+        </div>
+      )}
+
       {saveToast && (
         <div className="card" style={{background:"rgba(100,200,100,0.15)", marginTop:16, position:"sticky", top:60, zIndex:50}}>
           ✓ {saveToast}
@@ -675,6 +711,23 @@ export default function SuggestClient() {
           <p style={{opacity:0.5, fontSize:13, marginTop:8}}>
             The <strong>I Made This</strong> button appears on each result card here — that&apos;s where inventory deductions happen.
           </p>
+        </div>
+      )}
+
+      {urgentItems.length > 0 && (
+        <div className="card" style={{background:"rgba(255,180,0,0.08)", borderLeft:"3px solid #c90", marginTop:12}}>
+          <strong style={{fontSize:13}}>⚠ Use soon ({urgentItems.length} item{urgentItems.length !== 1 ? "s" : ""})</strong>
+          <div style={{marginTop:6, display:"flex", flexWrap:"wrap", gap:"4px 12px"}}>
+            {urgentItems.map(i => (
+              <span key={i.name} style={{fontSize:12, opacity:0.85}}>
+                {i.name}
+                {i.reason === "expiring" && i.expiresOn
+                  ? <span style={{opacity:0.6}}> · expires {new Date(i.expiresOn).toLocaleDateString()}</span>
+                  : <span style={{opacity:0.6}}> · stale</span>}
+              </span>
+            ))}
+          </div>
+          <p style={{margin:"6px 0 0", fontSize:11, opacity:0.55}}>Recipes above have been weighted to help use these up.</p>
         </div>
       )}
 
@@ -715,13 +768,38 @@ export default function SuggestClient() {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => openLogForm(r.recipeId, r.title, r.have)}
-              style={{padding:"6px 12px", fontSize:13}}
-            >
-              I Made This
-            </button>
+            <div style={{display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end"}}>
+              <button
+                onClick={() => openLogForm(r.recipeId, r.title, r.have)}
+                style={{padding:"6px 12px", fontSize:13}}
+              >
+                I Made This
+              </button>
+              <button
+                onClick={() => setMpForm(mpForm?.recipeId === r.recipeId ? null : { recipeId: r.recipeId, title: r.title })}
+                style={{padding:"4px 10px", fontSize:12, opacity:0.75}}
+              >
+                + Add to plan
+              </button>
+            </div>
           </div>
+
+          {mpForm?.recipeId === r.recipeId && (
+            <div style={{marginTop:8, padding:"10px 12px", background:"rgba(127,127,127,0.07)", borderRadius:6, display:"flex", flexWrap:"wrap", gap:8, alignItems:"center"}}>
+              <label style={{fontSize:13}}>Date <input type="date" value={mpDate} onChange={e => setMpDate(e.target.value)} style={{marginLeft:4}} /></label>
+              <label style={{fontSize:13}}>Slot
+                <select value={mpSlot} onChange={e => setMpSlot(e.target.value as any)} style={{marginLeft:4}}>
+                  <option value="breakfast">Breakfast</option>
+                  <option value="lunch">Lunch</option>
+                  <option value="dinner">Dinner</option>
+                </select>
+              </label>
+              <button onClick={addToMealPlan} disabled={mpSaving} style={{padding:"4px 14px", fontSize:13}}>
+                {mpSaving ? "Saving..." : "Add"}
+              </button>
+              <button onClick={() => setMpForm(null)} style={{padding:"4px 8px", fontSize:12, opacity:0.5}}>Cancel</button>
+            </div>
+          )}
 
           {logForm?.recipeId === r.recipeId && renderLogForm()}
 

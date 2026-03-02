@@ -5,6 +5,12 @@ import { normName } from "@/lib/normalize";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+async function enrichWithCategory(workspaceId: string, groceryItems: { name: string }[]) {
+  const invItems = await prisma.item.findMany({ where: { workspaceId }, select: { name: true, category: true } });
+  const categoryMap = new Map(invItems.map(i => [normName(i.name), i.category]));
+  return groceryItems.map(i => ({ ...i, category: categoryMap.get(normName(i.name)) ?? "OTHER" }));
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -15,7 +21,8 @@ export async function GET() {
     where: { workspaceId },
     orderBy: { createdAt: "desc" }
   });
-  return NextResponse.json({ items });
+  const enriched = await enrichWithCategory(workspaceId, items);
+  return NextResponse.json({ items: enriched });
 }
 
 const schema = z.object({
@@ -86,5 +93,6 @@ export async function POST(req: Request) {
     where: { workspaceId },
     orderBy: { createdAt: "desc" }
   });
-  return NextResponse.json({ created: created.count, items: all });
+  const enriched = await enrichWithCategory(workspaceId, all);
+  return NextResponse.json({ created: created.count, items: enriched });
 }
