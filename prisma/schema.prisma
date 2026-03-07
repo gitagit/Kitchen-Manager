@@ -303,7 +303,7 @@ model MealPlan {
   notes       String?
   servings    Int?     // Custom servings for this meal
 
-  recipe      Recipe?  @relation(fields: [recipeId], references: [id])
+  recipe      Recipe?  @relation(fields: [recipeId], references: [id], onDelete: SetNull)
 
   createdAt   DateTime @default(now())
 

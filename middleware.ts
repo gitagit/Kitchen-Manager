@@ -3,6 +3,6 @@ export { default } from "next-auth/middleware";
 export const config = {
   matcher: [
     // Protect all routes except auth endpoints, public pages, and static assets
-    "/((?!api/auth|api/workspace/join|login|register|join|_next/static|_next/image|icons|manifest\\.json|sw\\.js|favicon\\.ico).*)",
+    "/((?!api/auth|api/workspace/join|api/recipes/[^/]+/public|r/|login|register|join|_next/static|_next/image|icons|manifest\\.json|sw\\.js|favicon\\.ico).*)",
   ],
 };
