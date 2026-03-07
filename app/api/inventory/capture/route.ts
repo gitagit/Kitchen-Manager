@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthContext } from "@/lib/mobile-auth";
 import { checkAiLimit, recordAiCall, getAiLimit } from "@/lib/ai-limiter";
 import { Logger } from "next-axiom";
 
@@ -13,10 +12,9 @@ type ValidMediaType = typeof VALID_MEDIA_TYPES[number];
 export async function POST(req: Request) {
   const log = new Logger({ source: "capture" });
 
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const allowed = await checkAiLimit(workspaceId, "capture");
   if (!allowed) {
@@ -26,7 +24,7 @@ export async function POST(req: Request) {
     );
   }
 
-  let formData: FormData;
+  let formData: Awaited<ReturnType<Request["formData"]>>;
   try {
     formData = await req.formData();
   } catch {

@@ -121,7 +121,7 @@ export default function WelcomePage() {
       </div>
 
       {/* CTA */}
-      <div style={{ textAlign: "center" }}>
+      <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
         <button
           onClick={() => router.push("/")}
           style={{
@@ -135,6 +135,20 @@ export default function WelcomePage() {
           }}
         >
           Get started →
+        </button>
+        <button
+          onClick={() => router.push("/onboard")}
+          style={{
+            padding: "10px 28px",
+            fontSize: 14,
+            background: "none",
+            border: "1px solid rgba(128,128,128,0.25)",
+            borderRadius: 8,
+            cursor: "pointer",
+            opacity: 0.6,
+          }}
+        >
+          📷 Re-run kitchen photo setup
         </button>
       </div>
     </div>

@@ -39,7 +39,7 @@ export default function WorkspaceSetup() {
       return;
     }
     await update();
-    router.push("/welcome");
+    router.push("/onboard");
   }
 
   async function joinWorkspace(e: React.FormEvent) {

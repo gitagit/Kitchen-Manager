@@ -2,8 +2,7 @@ import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { normName } from "@/lib/normalize";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthContext } from "@/lib/mobile-auth";
 
 async function enrichWithCategory(workspaceId: string, groceryItems: { name: string }[]) {
   const invItems = await prisma.item.findMany({ where: { workspaceId }, select: { name: true, category: true } });
@@ -11,11 +10,10 @@ async function enrichWithCategory(workspaceId: string, groceryItems: { name: str
   return groceryItems.map(i => ({ ...i, category: categoryMap.get(normName(i.name)) ?? "OTHER" }));
 }
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+export async function GET(req: Request) {
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const items = await prisma.groceryItem.findMany({
     where: { workspaceId },
@@ -31,10 +29,9 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const body = await req.json();
   const parsed = schema.safeParse(body);

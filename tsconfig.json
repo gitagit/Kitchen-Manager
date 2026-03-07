@@ -41,6 +41,7 @@
   ],
   "exclude": [
     "node_modules",
+    "mobile",
     "prisma/seed.ts",
     "scripts/**/*",
     "tests/**/*"

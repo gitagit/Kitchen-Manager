@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ConfirmModal, Toast } from "@/app/components/Modal";
+import Modal from "@/app/components/Modal";
 import { normName } from "@/lib/normalize";
 import { subtractQty } from "@/lib/quantity";
 
@@ -113,6 +114,12 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Refine / Ask AI state
+  const [refineModal, setRefineModal] = useState<{ id: string; title: string } | null>(null);
+  const [refineInstruction, setRefineInstruction] = useState("");
+  const [refining, setRefining] = useState(false);
+  const [refineResult, setRefineResult] = useState<{ type: "answer"; text: string } | { type: "modified" } | null>(null);
 
   // Cook log form state (inline per recipe)
   const [logFormRecipeId, setLogFormRecipeId] = useState<string | null>(null);
@@ -461,6 +468,39 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
     } finally {
       setDeleting(false);
     }
+  }
+
+  async function refineRecipe() {
+    if (!refineModal || !refineInstruction.trim()) return;
+    setRefining(true);
+    setRefineResult(null);
+    try {
+      const res = await fetch(`/api/recipes/${refineModal.id}/refine`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ instruction: refineInstruction }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Refine failed");
+      setRefineResult(data);
+      if (data.type === "modified") await refresh();
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : "Refine failed", type: "error" });
+    } finally {
+      setRefining(false);
+    }
+  }
+
+  function openRefineModal(id: string, title: string) {
+    setRefineModal({ id, title });
+    setRefineInstruction("");
+    setRefineResult(null);
+  }
+
+  function closeRefineModal() {
+    setRefineModal(null);
+    setRefineInstruction("");
+    setRefineResult(null);
   }
 
   function editRecipe(r: Recipe) {
@@ -1214,6 +1254,10 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                       }}
                       style={{padding:"4px 12px", fontSize:13, opacity:0.65}}
                     >Share</button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openRefineModal(r.id, r.title); }}
+                      style={{padding:"4px 12px", fontSize:13, opacity:0.75}}
+                    >✨ Ask AI</button>
                   </div>
                 )}
 
@@ -1242,6 +1286,61 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
           background: rgba(100,150,255,0.2);
         }
       `}</style>
+
+      <Modal
+        open={!!refineModal}
+        onClose={closeRefineModal}
+        title={refineModal ? `✨ Ask AI — ${refineModal.title}` : "Ask AI"}
+      >
+        {refineResult?.type === "answer" ? (
+          <div>
+            <p style={{ margin: "0 0 14px", fontSize: 14, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+              {refineResult.text}
+            </p>
+            <button onClick={() => setRefineResult(null)} style={{ fontSize: 13 }}>
+              ← Ask another question
+            </button>
+          </div>
+        ) : refineResult?.type === "modified" ? (
+          <div>
+            <p style={{ margin: "0 0 14px" }}>✅ Recipe updated.</p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setRefineResult(null)} style={{ fontSize: 13 }}>
+                ← Make another change
+              </button>
+              <button onClick={closeRefineModal} style={{ fontSize: 13, opacity: 0.6 }}>Done</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p style={{ margin: "0 0 6px", fontSize: 13, opacity: 0.65 }}>
+              Ask a question or request a change:
+            </p>
+            <ul style={{ margin: "0 0 12px", paddingLeft: 18, fontSize: 13, opacity: 0.65 }}>
+              <li>Make this dairy-free</li>
+              <li>Cut the cook time in half</li>
+              <li>Can I substitute chicken for beef?</li>
+              <li>Add a wine pairing suggestion</li>
+            </ul>
+            <textarea
+              rows={3}
+              value={refineInstruction}
+              onChange={e => setRefineInstruction(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) refineRecipe(); }}
+              placeholder="What would you like to change or ask?"
+              style={{ width: "100%", fontSize: 14, boxSizing: "border-box", marginBottom: 10 }}
+              autoFocus
+            />
+            <button
+              onClick={refineRecipe}
+              disabled={refining || !refineInstruction.trim()}
+              style={{ width: "100%", fontWeight: 600, padding: "10px" }}
+            >
+              {refining ? "Thinking… (may take 20s)" : "Ask AI →"}
+            </button>
+          </div>
+        )}
+      </Modal>
 
       <ConfirmModal
         open={!!deleteModal}
