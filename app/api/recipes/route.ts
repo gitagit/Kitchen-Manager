@@ -2,8 +2,7 @@ import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { normName } from "@/lib/normalize";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthContext } from "@/lib/mobile-auth";
 
 const RecipeSchema = z.object({
   title: z.string().min(1).max(200),
@@ -40,11 +39,10 @@ const RecipeSchema = z.object({
 
 const RECIPE_LIMIT = 200;
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+export async function GET(req: Request) {
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const [recipes, total] = await Promise.all([
     prisma.recipe.findMany({
@@ -64,10 +62,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const body = await req.json();
   const parsed = RecipeSchema.safeParse(body);
@@ -163,10 +160,9 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const body = await req.json();
 
@@ -268,10 +264,9 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");

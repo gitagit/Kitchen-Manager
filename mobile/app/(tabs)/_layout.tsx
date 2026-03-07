@@ -20,6 +20,10 @@ export default function TabLayout() {
         options={{ title: "Inventory", tabBarIcon: () => <TabIcon label="📦" /> }}
       />
       <Tabs.Screen
+        name="recipes/index"
+        options={{ title: "Recipes", tabBarIcon: () => <TabIcon label="📖" /> }}
+      />
+      <Tabs.Screen
         name="suggest/index"
         options={{ title: "Suggest", tabBarIcon: () => <TabIcon label="✨" /> }}
       />
@@ -28,7 +32,7 @@ export default function TabLayout() {
         options={{ title: "Grocery", tabBarIcon: () => <TabIcon label="🛒" /> }}
       />
       <Tabs.Screen
-        name="more/index"
+        name="more"
         options={{ title: "More", tabBarIcon: () => <TabIcon label="☰" /> }}
       />
     </Tabs>

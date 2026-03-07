@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthContext } from "@/lib/mobile-auth";
 
 const schema = z.object({
   recipeId: z.string().min(1),
@@ -14,10 +13,9 @@ const schema = z.object({
 });
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const { searchParams } = new URL(req.url);
   const recipeId = searchParams.get("recipeId");
@@ -48,10 +46,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const body = await req.json();
   const parsed = schema.safeParse(body);

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { UserPreferencesSchema } from "@/app/api/_shared";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthContext } from "@/lib/mobile-auth";
 
 const DEFAULTS = {
   equipment: ["OVEN", "STOVETOP"],
@@ -16,11 +15,10 @@ const DEFAULTS = {
   showGamification: false,
 };
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+export async function GET(req: Request) {
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const row = await prisma.userPreferences.findUnique({ where: { workspaceId } });
   if (!row) {
@@ -30,10 +28,9 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const body = await req.json();
   const parsed = UserPreferencesSchema.safeParse(body);

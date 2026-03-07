@@ -1,14 +1,12 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { normName } from "@/lib/normalize";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthContext } from "@/lib/mobile-auth";
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+export async function GET(req: Request) {
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   // Run all independent queries in parallel
   const [cookLogs, techniques, totalRecipes, allItems, prefsRow] = await Promise.all([
