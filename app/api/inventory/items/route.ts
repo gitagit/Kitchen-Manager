@@ -173,9 +173,10 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Delete batches first, then the item
-  await prisma.itemBatch.deleteMany({ where: { itemId: id } });
-  await prisma.item.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.itemBatch.deleteMany({ where: { itemId: id } }),
+    prisma.item.delete({ where: { id } }),
+  ]);
 
   return NextResponse.json({ success: true });
 }

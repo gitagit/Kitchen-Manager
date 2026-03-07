@@ -3,8 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { jsonrepair } from "jsonrepair";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthContext } from "@/lib/mobile-auth";
 import { checkAiLimit, recordAiCall, getAiLimit } from "@/lib/ai-limiter";
 import { Logger } from "next-axiom";
 
@@ -30,10 +29,9 @@ function normalizeInstructions(raw: string): string {
 export async function POST(req: Request) {
   const log = new Logger({ source: "generate" });
 
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const allowed = await checkAiLimit(workspaceId, "generate");
   if (!allowed) {

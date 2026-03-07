@@ -281,11 +281,12 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Delete related records first
-  await prisma.recipeIngredient.deleteMany({ where: { recipeId: id } });
-  await prisma.cookLog.deleteMany({ where: { recipeId: id } });
-  await prisma.recipeTechnique.deleteMany({ where: { recipeId: id } });
-  await prisma.recipe.delete({ where: { id } });
+  await prisma.$transaction([
+    prisma.recipeIngredient.deleteMany({ where: { recipeId: id } }),
+    prisma.cookLog.deleteMany({ where: { recipeId: id } }),
+    prisma.recipeTechnique.deleteMany({ where: { recipeId: id } }),
+    prisma.recipe.delete({ where: { id } }),
+  ]);
 
   return NextResponse.json({ success: true });
 }

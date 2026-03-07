@@ -1,15 +1,14 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthContext } from "@/lib/mobile-auth";
 import { z } from "zod";
 
 // POST: join a workspace via invite code
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (session.user.workspaceId) {
+  if (auth.workspaceId) {
     return NextResponse.json({ error: "Already in a workspace" }, { status: 409 });
   }
 
@@ -29,7 +28,7 @@ export async function POST(req: Request) {
 
   await prisma.$transaction([
     prisma.workspaceMember.create({
-      data: { workspaceId: invite.workspaceId, userId: session.user.id, role: "MEMBER" },
+      data: { workspaceId: invite.workspaceId, userId: auth.userId, role: "MEMBER" },
     }),
     prisma.workspaceInvite.update({
       where: { id: invite.id },

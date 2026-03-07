@@ -37,9 +37,13 @@ export async function POST(req: Request) {
 
   const workspaceId = member?.workspaceId ?? null;
 
+  if (!workspaceId) {
+    return NextResponse.json({ error: "Account has no workspace. Please set one up on the web app first." }, { status: 403 });
+  }
+
   const token = await signMobileToken({
     userId: user.id,
-    workspaceId: workspaceId ?? "",
+    workspaceId,
     email: user.email,
   });
 

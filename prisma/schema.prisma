@@ -72,7 +72,7 @@ model WorkspaceInvite {
 
 // ============== INVENTORY ==============
 // Note: SQLite doesn't support enums, so we use String with validation in app code
-// Valid ItemCategory: PANTRY, SPICE, FROZEN, PRODUCE, MEAT, DAIRY, CONDIMENT, BAKING, BEVERAGE, OTHER
+// Valid ItemCategory: PANTRY, SPICE, SEAFOOD, PRODUCE, MEAT, DAIRY, CONDIMENT, BAKING, BEVERAGE, PREPARED, OTHER
 // Valid ItemLocation: PANTRY, FRIDGE, FREEZER, COUNTER, OTHER
 // Valid GroceryChannel: SHIP, IN_PERSON, EITHER
 
@@ -80,7 +80,7 @@ model Item {
   id              String   @id @default(cuid())
   workspaceId     String
   name            String
-  category        String   // PANTRY, SPICE, FROZEN, PRODUCE, MEAT, DAIRY, CONDIMENT, BAKING, BEVERAGE, OTHER
+  category        String   // PANTRY, SPICE, SEAFOOD, PRODUCE, MEAT, DAIRY, CONDIMENT, BAKING, BEVERAGE, PREPARED, OTHER
   location        String   // PANTRY, FRIDGE, FREEZER, COUNTER, OTHER
   staple          Boolean  @default(false)
   parLevel        Int?

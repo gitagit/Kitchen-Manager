@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
+import { getAuthContext } from "@/lib/mobile-auth";
 
 export const maxDuration = 45; // External URL fetch + parsing + optional Haiku normalization
 
@@ -91,6 +92,9 @@ function validateUrl(urlStr: string): string | null {
 }
 
 export async function POST(req: Request) {
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const body = await req.json();
   const parsed = ImportSchema.safeParse(body);
 
@@ -252,9 +256,6 @@ function normalizeJsonLdRecipe(data: Record<string, unknown>, sourceUrl: string)
       ? data.recipeCuisine[0]
       : String(data.recipeCuisine);
   }
-
-  // Determine source type
-  const hostname = new URL(sourceUrl).hostname.replace("www.", "");
 
   return {
     title,

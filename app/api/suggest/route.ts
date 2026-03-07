@@ -138,8 +138,10 @@ export async function POST(req: Request) {
     .sort((a, b) => b.score - a.score)
     .slice(0, 10);
 
+  const recipeById = new Map(recipes.map(r => [r.id, r]));
+
   const withCost = scored.map(r => {
-    const recipe = recipes.find(rec => rec.id === r.recipeId)!;
+    const recipe = recipeById.get(r.recipeId)!;
 
     const requiredIngs = recipe.ingredients.filter(ing => ing.required);
     const pricedIngs = requiredIngs.filter(ing => itemCostMap.has(normName(ing.name)));

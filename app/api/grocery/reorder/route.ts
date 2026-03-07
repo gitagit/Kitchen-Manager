@@ -1,21 +1,18 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { normName } from "@/lib/normalize";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getAuthContext } from "@/lib/mobile-auth";
 
 function inferChannel(category: string, location?: string | null): "SHIP" | "IN_PERSON" | "EITHER" {
   if (location === "FRIDGE" || location === "FREEZER") return "IN_PERSON";
   if (["PRODUCE", "MEAT", "DAIRY"].includes(category)) return "IN_PERSON";
-  if (category === "FROZEN") return "EITHER";
   return "SHIP";
 }
 
-export async function POST() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { workspaceId } = session.user;
-  if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 403 });
+export async function POST(req: Request) {
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
 
   const now = new Date();
   const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -81,10 +78,12 @@ export async function POST() {
     .filter(([, count]) => count >= 2)
     .map(([id]) => id);
 
-  const frequentRecipes = [...new Set(recentLogs
-    .filter(l => frequentRecipeIds.includes(l.recipeId))
-    .map(l => l.recipe)
-  )];
+  const frequentRecipeMap = new Map(
+    recentLogs
+      .filter(l => frequentRecipeIds.includes(l.recipeId))
+      .map(l => [l.recipeId, l.recipe])
+  );
+  const frequentRecipes = Array.from(frequentRecipeMap.values());
 
   for (const recipe of frequentRecipes) {
     for (const ing of recipe.ingredients.filter(i => i.required)) {
