@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.miseenapp.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Mise en App uses your camera to scan barcodes and photograph your pantry for inventory capture."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +23,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.miseenapp.mobile"
     },
     "web": {
       "output": "static",
@@ -39,7 +44,20 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Mise en App needs camera access to scan barcodes and photograph your pantry."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#4a90d9"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

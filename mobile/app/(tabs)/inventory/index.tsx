@@ -61,12 +61,20 @@ export default function InventoryScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>📦 Inventory</Text>
-        <TouchableOpacity
-          style={styles.cameraBtn}
-          onPress={() => router.push("/capture")}
-        >
-          <Text style={styles.cameraBtnText}>📷 Scan</Text>
-        </TouchableOpacity>
+        <View style={styles.headerBtns}>
+          <TouchableOpacity
+            style={styles.cameraBtn}
+            onPress={() => router.push("/barcode")}
+          >
+            <Text style={styles.cameraBtnText}>Barcode</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cameraBtn}
+            onPress={() => router.push("/capture")}
+          >
+            <Text style={styles.cameraBtnText}>📷 Scan</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <TextInput
@@ -117,6 +125,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 60, paddingBottom: 12,
   },
   title: { fontSize: 22, fontWeight: "700", color: "#fff" },
+  headerBtns: { flexDirection: "row", gap: 8 },
   cameraBtn: {
     backgroundColor: "#4a90d920",
     borderColor: "#4a90d960",

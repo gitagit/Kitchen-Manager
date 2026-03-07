@@ -292,6 +292,20 @@ model AiUsage {
   @@index([workspaceId, endpoint, calledAt])
 }
 
+// ============== PUSH NOTIFICATIONS ==============
+
+model PushToken {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  userId      String
+  workspaceId String
+  platform    String?  // "ios" | "android"
+  createdAt   DateTime @default(now())
+
+  @@index([workspaceId])
+  @@index([userId])
+}
+
 // ============== MEAL PLANNING ==============
 
 model MealPlan {

@@ -4,6 +4,7 @@ import {
   RefreshControl, ActivityIndicator, Alert, TextInput,
 } from "react-native";
 import { apiFetch } from "@/lib/api";
+import { cacheGroceryList, getCachedGroceryList } from "@/lib/offline";
 
 type GroceryItem = {
   id: string;
@@ -25,14 +26,26 @@ export default function GroceryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [newItem, setNewItem] = useState("");
   const [adding, setAdding] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const res = await apiFetch("/api/grocery/plan");
       const data = await res.json();
-      setItems(data.items ?? []);
+      const fetched = (data.items ?? []) as GroceryItem[];
+      setItems(fetched);
+      setOffline(false);
+      // Cache for offline use
+      await cacheGroceryList(fetched);
     } catch {
-      Alert.alert("Error", "Could not load grocery list");
+      // Network failed — try loading from cache
+      const cached = await getCachedGroceryList();
+      if (cached) {
+        setItems(cached.items as GroceryItem[]);
+        setOffline(true);
+      } else {
+        Alert.alert("Error", "Could not load grocery list and no offline cache available");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -44,19 +57,26 @@ export default function GroceryScreen() {
   async function toggleAcquired(item: GroceryItem) {
     const updated = items.map(i => i.id === item.id ? { ...i, acquired: !i.acquired } : i);
     setItems(updated);
-    await apiFetch("/api/grocery/plan", {
-      method: "POST",
-      body: JSON.stringify({
-        items: updated.map(i => ({
-          name: i.name,
-          channel: i.channel,
-          quantityText: i.quantityText,
-          reason: i.reason,
-          priority: i.priority,
-          acquired: i.acquired,
-        })),
-      }),
-    });
+    // Update cache immediately for offline resilience
+    await cacheGroceryList(updated);
+
+    try {
+      await apiFetch("/api/grocery/plan", {
+        method: "POST",
+        body: JSON.stringify({
+          items: updated.map(i => ({
+            name: i.name,
+            channel: i.channel,
+            quantityText: i.quantityText,
+            reason: i.reason,
+            priority: i.priority,
+            acquired: i.acquired,
+          })),
+        }),
+      });
+    } catch {
+      // Offline toggle — already saved to cache, will sync on next load
+    }
   }
 
   async function addItem() {
@@ -66,15 +86,22 @@ export default function GroceryScreen() {
       ...items,
       { id: Date.now().toString(), name: newItem.trim(), channel: "EITHER", quantityText: null, reason: "manual", priority: 2, acquired: false },
     ];
-    await apiFetch("/api/grocery/plan", {
-      method: "POST",
-      body: JSON.stringify({
-        items: updated.map(i => ({
-          name: i.name, channel: i.channel, quantityText: i.quantityText,
-          reason: i.reason, priority: i.priority, acquired: i.acquired,
-        })),
-      }),
-    });
+    setItems(updated);
+    await cacheGroceryList(updated);
+
+    try {
+      await apiFetch("/api/grocery/plan", {
+        method: "POST",
+        body: JSON.stringify({
+          items: updated.map(i => ({
+            name: i.name, channel: i.channel, quantityText: i.quantityText,
+            reason: i.reason, priority: i.priority, acquired: i.acquired,
+          })),
+        }),
+      });
+    } catch {
+      // Saved locally, will sync on next online load
+    }
     setNewItem("");
     setAdding(false);
     load();
@@ -90,8 +117,15 @@ export default function GroceryScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>🛒 Grocery</Text>
-        <Text style={styles.count}>{pending.length} remaining</Text>
+        <Text style={styles.title}>Grocery</Text>
+        <View style={styles.headerRight}>
+          {offline && (
+            <View style={styles.offlineBadge}>
+              <Text style={styles.offlineText}>Offline</Text>
+            </View>
+          )}
+          <Text style={styles.count}>{pending.length} remaining</Text>
+        </View>
       </View>
 
       {/* Add item */}
@@ -151,6 +185,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 60, paddingBottom: 12,
   },
   title: { fontSize: 22, fontWeight: "700", color: "#fff" },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  offlineBadge: {
+    backgroundColor: "#a0600020", borderColor: "#a06000", borderWidth: 1,
+    borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
+  },
+  offlineText: { color: "#c08030", fontSize: 11, fontWeight: "600" },
   count: { fontSize: 14, color: "#666" },
   addRow: { flexDirection: "row", marginHorizontal: 12, marginBottom: 8, gap: 8 },
   addInput: {
