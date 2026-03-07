@@ -41,4 +41,11 @@ yarn-error.log*
 # Claude Code
 .claude/
 
+# Playwright
+test-results/
+.playwright-mcp/
+
+# MCP config (local only)
+.mcp.json
+
 .vercel
