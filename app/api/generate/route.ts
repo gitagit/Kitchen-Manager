@@ -91,7 +91,7 @@ INVENTORY:
 ${inventoryBlock}
 ${constraintLines.length > 0 ? `\nCONSTRAINTS:\n${constraintLines.join("\n")}` : ""}
 
-Generate exactly ${count} diverse recipes. Prioritize ingredients from the inventory; you may add up to 3 common extras if truly needed.
+Generate exactly ${count} diverse recipes. Each recipe must come from a different cuisine. Prioritize ingredients from the inventory; you may add up to 3 common extras if truly needed.
 
 Return ONLY a JSON object with this exact structure — no markdown, no explanation:
 {
@@ -148,7 +148,7 @@ Field rules:
   let message;
   try {
     message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 8192,
       messages: [{ role: "user", content: prompt }]
     });
