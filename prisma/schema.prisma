@@ -144,6 +144,8 @@ model Recipe {
   carbsG              Int?
   fatG                Int?
 
+  favorite      Boolean  @default(false)
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -304,6 +306,23 @@ model PushToken {
 
   @@index([workspaceId])
   @@index([userId])
+}
+
+// ============== WASTE TRACKING ==============
+
+model WasteLog {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  itemName     String   // Snapshot of item name at time of discard
+  category     String   // PANTRY, SPICE, etc. — snapshot from item
+  quantityText String   // e.g. "2 cans", "1 lb"
+  reason       String   // EXPIRED, SPOILED, UNUSED, LEFTOVER, OTHER
+  costCents    Int?     // Estimated cost of wasted portion
+  notes        String?
+  discardedOn  DateTime @default(now())
+
+  @@index([workspaceId])
+  @@index([workspaceId, discardedOn])
 }
 
 // ============== MEAL PLANNING ==============

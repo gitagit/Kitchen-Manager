@@ -9,6 +9,7 @@ export default function NavLink({ href, children }: { href: string; children: Re
   return (
     <a
       href={href}
+      aria-current={isActive ? "page" : undefined}
       style={{
         fontWeight: isActive ? 600 : 400,
         background: isActive ? "rgba(74, 144, 217, 0.15)" : undefined,

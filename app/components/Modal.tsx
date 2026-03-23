@@ -8,9 +8,10 @@ type ModalProps = {
   title: string;
   children: React.ReactNode;
   actions?: React.ReactNode;
+  maxWidth?: number;
 };
 
-export default function Modal({ open, onClose, title, children, actions }: ModalProps) {
+export default function Modal({ open, onClose, title, children, actions, maxWidth }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
 
@@ -62,11 +63,11 @@ export default function Modal({ open, onClose, title, children, actions }: Modal
         border: "none",
         borderRadius: 12,
         padding: 0,
-        maxWidth: 400,
+        maxWidth: maxWidth ?? 400,
         width: "90%",
         boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
         background: "var(--card-bg, #fff)",
-        color: "var(--text, #222)"
+        color: "var(--fg, #222)"
       }}
     >
       <div style={{ padding: 20 }}>
@@ -81,7 +82,7 @@ export default function Modal({ open, onClose, title, children, actions }: Modal
               fontSize: 20,
               cursor: "pointer",
               padding: "4px 8px",
-              color: "var(--text, #222)",
+              color: "var(--fg, #222)",
               opacity: 0.6
             }}
           >

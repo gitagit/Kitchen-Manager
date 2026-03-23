@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const { workspaceId } = auth;
 
   // Run all independent queries in parallel
-  const [cookLogs, techniques, totalRecipes, allItems, prefsRow] = await Promise.all([
+  const [cookLogs, techniques, totalRecipes, allItems, prefsRow, wasteLogs] = await Promise.all([
     prisma.cookLog.findMany({
       where: { recipe: { workspaceId } },
       include: {
@@ -54,6 +54,10 @@ export async function GET(req: Request) {
         carbsGoalG: true,
         fatGoalG: true,
       }
+    }),
+    prisma.wasteLog.findMany({
+      where: { workspaceId },
+      orderBy: { discardedOn: "asc" },
     })
   ]);
 
@@ -213,6 +217,42 @@ export async function GET(req: Request) {
     confident:  techniques.filter(t => t.comfort === 3).length
   };
 
+  // Waste aggregations
+  const wasteByMonth: Record<string, number> = {};
+  const wasteByItem: Record<string, { name: string; count: number; totalCents: number }> = {};
+  const wasteByReason: Record<string, number> = {};
+  let totalWasteCents = 0;
+  let totalWasteItems = 0;
+  let last30DaysWasteCents = 0;
+
+  for (const w of wasteLogs) {
+    const d = new Date(w.discardedOn);
+    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const cents = w.costCents ?? 0;
+
+    wasteByMonth[monthKey] = (wasteByMonth[monthKey] || 0) + cents;
+    totalWasteCents += cents;
+    totalWasteItems++;
+
+    if (d >= thirtyDaysAgo) last30DaysWasteCents += cents;
+
+    const itemKey = w.itemName.toLowerCase();
+    if (!wasteByItem[itemKey]) wasteByItem[itemKey] = { name: w.itemName, count: 0, totalCents: 0 };
+    wasteByItem[itemKey].count++;
+    wasteByItem[itemKey].totalCents += cents;
+
+    wasteByReason[w.reason] = (wasteByReason[w.reason] || 0) + 1;
+  }
+
+  const mostWasted = Object.values(wasteByItem)
+    .sort((a, b) => b.totalCents - a.totalCents || b.count - a.count)
+    .slice(0, 10);
+
+  const wasteMonthly = Object.entries(wasteByMonth)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .slice(-6)
+    .map(([month, cents]) => ({ month, cents }));
+
   return NextResponse.json({
     overview: {
       totalMeals,
@@ -234,6 +274,14 @@ export async function GET(req: Request) {
     monthlyActivity,
     techniqueStats,
     comfortDistribution,
+    waste: {
+      totalWasteItems,
+      totalWasteCents,
+      last30DaysWasteCents,
+      wasteMonthly,
+      mostWasted,
+      wasteByReason,
+    },
     showGamification: prefsRow?.showGamification ?? false,
     nutrition: {
       avgDailyCalories,

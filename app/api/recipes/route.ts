@@ -263,6 +263,30 @@ export async function PUT(req: Request) {
   return NextResponse.json({ recipe: updated });
 }
 
+export async function PATCH(req: Request) {
+  const auth = await getAuthContext(req);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { workspaceId } = auth;
+
+  const body = await req.json();
+  const { id, favorite } = body;
+  if (!id || typeof favorite !== "boolean") {
+    return NextResponse.json({ error: "id and favorite (boolean) required" }, { status: 400 });
+  }
+
+  const existing = await prisma.recipe.findUnique({ where: { id } });
+  if (!existing || existing.workspaceId !== workspaceId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const updated = await prisma.recipe.update({
+    where: { id },
+    data: { favorite },
+  });
+
+  return NextResponse.json({ recipe: updated });
+}
+
 export async function DELETE(req: Request) {
   const auth = await getAuthContext(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

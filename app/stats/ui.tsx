@@ -30,6 +30,14 @@ type Stats = {
       fatGoalG:     number | null;
     };
   };
+  waste: {
+    totalWasteItems: number;
+    totalWasteCents: number;
+    last30DaysWasteCents: number;
+    wasteMonthly: { month: string; cents: number }[];
+    mostWasted: { name: string; count: number; totalCents: number }[];
+    wasteByReason: Record<string, number>;
+  };
   ratingDistribution: Record<number, number>;
   topCuisines: { cuisine: string; count: number }[];
   mostCooked: { id: string; title: string; count: number; avgRating: number }[];
@@ -99,9 +107,23 @@ export default function StatsClient() {
 
   if (loading) {
     return (
-      <div className="loading-state">
-        <span className="spinner large"></span>
-        <span>Loading stats...</span>
+      <div>
+        <div className="row" style={{ gap: 12, marginBottom: 16 }}>
+          {[1, 2, 3, 4].map(n => (
+            <div key={n} className="skeleton-card" style={{ flex: "1 1 200px" }}>
+              <div className="skeleton skeleton-line short" />
+              <div className="skeleton skeleton-heading" style={{ width: "60%" }} />
+            </div>
+          ))}
+        </div>
+        {[1, 2].map(n => (
+          <div key={n} className="skeleton-card">
+            <div className="skeleton skeleton-heading" />
+            <div className="skeleton skeleton-line" />
+            <div className="skeleton skeleton-line medium" />
+            <div className="skeleton skeleton-line short" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -116,7 +138,7 @@ export default function StatsClient() {
     );
   }
 
-  const { overview, ratingDistribution, topCuisines, mostCooked, highestRated, monthlyActivity, techniqueStats, comfortDistribution, showGamification, nutrition } = stats;
+  const { overview, ratingDistribution, topCuisines, mostCooked, highestRated, monthlyActivity, techniqueStats, comfortDistribution, showGamification, nutrition, waste } = stats;
 
   // Format monthly activity for chart
   const sortedMonths = Object.entries(monthlyActivity).sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
@@ -139,6 +161,75 @@ export default function StatsClient() {
           sub="per serving"
         />
       </div>
+
+      {/* Waste Tracking */}
+      {waste.totalWasteItems > 0 && (
+        <>
+          <div className="card">
+            <h3 style={{ margin: "0 0 12px 0" }}>Food Waste</h3>
+            <div className="stat-grid">
+              <StatCard
+                label="Total Wasted"
+                value={`$${(waste.totalWasteCents / 100).toFixed(2)}`}
+                sub={`${waste.totalWasteItems} item${waste.totalWasteItems !== 1 ? "s" : ""}`}
+              />
+              <StatCard
+                label="Last 30 Days"
+                value={`$${(waste.last30DaysWasteCents / 100).toFixed(2)}`}
+                sub="wasted"
+              />
+            </div>
+          </div>
+
+          <div className="stats-row">
+            {waste.wasteMonthly.length > 0 && (
+              <div className="card">
+                <h3>Monthly Waste ($)</h3>
+                <BarChart
+                  data={waste.wasteMonthly.map(w => ({
+                    label: w.month,
+                    value: Math.round(w.cents / 100),
+                    color: "#c44"
+                  }))}
+                />
+              </div>
+            )}
+
+            {waste.mostWasted.length > 0 && (
+              <div className="card">
+                <h3>Most Wasted Items</h3>
+                <table style={{ width: "100%" }}>
+                  <tbody>
+                    {waste.mostWasted.map((w, i) => (
+                      <tr key={i}>
+                        <td>{w.name}</td>
+                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                          {w.count}x <span className="muted">{w.totalCents > 0 ? `($${(w.totalCents / 100).toFixed(2)})` : ""}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {Object.keys(waste.wasteByReason).length > 0 && (
+            <div className="card">
+              <h3>Waste by Reason</h3>
+              <BarChart
+                data={Object.entries(waste.wasteByReason)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([reason, count]) => ({
+                    label: reason.charAt(0) + reason.slice(1).toLowerCase(),
+                    value: count,
+                    color: reason === "EXPIRED" ? "#c44" : reason === "SPOILED" ? "#c90" : "#4a90d9"
+                  }))}
+              />
+            </div>
+          )}
+        </>
+      )}
 
       {/* Nutrition Section */}
       {nutrition.avgDailyCalories != null && (() => {

@@ -52,7 +52,7 @@ export async function POST(req: Request) {
   // Stale items (mirrors STALE_DAYS in ui.tsx; FREEZER location never stale)
   const STALE_DAYS: Record<string, number> = {
     SEAFOOD: 2, PRODUCE: 5, MEAT: 4, DAIRY: 7, PREPARED: 4,
-    PANTRY: 30, CONDIMENT: 60, BAKING: 60, BEVERAGE: 14, OTHER: 14,
+    PANTRY: 180, CONDIMENT: 180, BAKING: 180, BEVERAGE: 30, OTHER: 14,
   };
   const FREEZER_STALE_DAYS = 90;
 

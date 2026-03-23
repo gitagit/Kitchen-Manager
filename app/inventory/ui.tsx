@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ConfirmModal, Toast } from "@/app/components/Modal";
+import Modal, { ConfirmModal, Toast } from "@/app/components/Modal";
 
 type Item = {
   id: string;
@@ -61,11 +61,11 @@ const STALE_DAYS: Record<string, number | null> = {
   MEAT:      4,
   DAIRY:     7,
   PREPARED:  4,
-  PANTRY:    30,
-  CONDIMENT: 60,
+  PANTRY:    180,
+  CONDIMENT: 180,
   SPICE:     null, // never stale
-  BAKING:    60,
-  BEVERAGE:  14,
+  BAKING:    180,
+  BEVERAGE:  30,
   OTHER:     14,
 };
 const FREEZER_STALE_DAYS = 90;
@@ -105,9 +105,12 @@ export default function InventoryClient() {
   const [parLevel, setParLevel] = useState<number | null>(null);
   const [importText, setImportText] = useState("");
 
-  // Edit mode state
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
+  // Edit modal state
+  const [editModal, setEditModal] = useState<{
+    id: string; batchId: string | null;
+    name: string; category: string; location: string;
+    qty: string; cost: string; parLevel: number | null;
+  } | null>(null);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -140,6 +143,13 @@ export default function InventoryClient() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+
+  // Discard (waste) modal state
+  const [discardModal, setDiscardModal] = useState<{
+    name: string; category: string; costCents: number | null;
+    qty: string; reason: string; notes: string;
+  } | null>(null);
+  const [discarding, setDiscarding] = useState(false);
 
   // Scan state
   const [showScan, setShowScan] = useState(false);
@@ -175,34 +185,22 @@ export default function InventoryClient() {
     try {
       const costCents = cost ? Math.round(parseFloat(cost) * 100) : undefined;
 
-      const res = editingId
-        ? await fetch("/api/inventory/items", {
-            method: "PUT",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              id: editingId,
-              item: { name, category, location, defaultCostCents: costCents, parLevel: parLevel },
-              batch: editingBatchId
-                ? { id: editingBatchId, quantityText: qty, costCents }
-                : { quantityText: qty, costCents }
-            })
-          })
-        : await fetch("/api/inventory/items", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              item: { name, category, location, defaultCostCents: costCents },
-              batch: { quantityText: qty, costCents }
-            })
-          });
+      const res = await fetch("/api/inventory/items", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          item: { name, category, location, defaultCostCents: costCents },
+          batch: { quantityText: qty, costCents }
+        })
+      });
 
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error?.fieldErrors?.name?.[0] || "Failed to save item");
       }
 
-      setToast({ message: editingId ? "Item updated" : "Item added", type: "success" });
-      cancelEdit();
+      setToast({ message: "Item added", type: "success" });
+      setName(""); setQty("1"); setCost(""); setParLevel(null);
       await refresh();
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : "Failed to save item", type: "error" });
@@ -211,15 +209,34 @@ export default function InventoryClient() {
     }
   }
 
-  function cancelEdit() {
-    setEditingId(null);
-    setEditingBatchId(null);
-    setName("");
-    setCategory("PANTRY");
-    setLocation("PANTRY");
-    setQty("1");
-    setCost("");
-    setParLevel(null);
+  async function saveEdit() {
+    if (!editModal) return;
+    setSaving(true);
+    try {
+      const costCents = editModal.cost ? Math.round(parseFloat(editModal.cost) * 100) : undefined;
+      const res = await fetch("/api/inventory/items", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: editModal.id,
+          item: { name: editModal.name, category: editModal.category, location: editModal.location, defaultCostCents: costCents, parLevel: editModal.parLevel },
+          batch: editModal.batchId
+            ? { id: editModal.batchId, quantityText: editModal.qty, costCents }
+            : { quantityText: editModal.qty, costCents }
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error?.fieldErrors?.name?.[0] || "Failed to save item");
+      }
+      setToast({ message: "Item updated", type: "success" });
+      setEditModal(null);
+      await refresh();
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : "Failed to save item", type: "error" });
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function runImport() {
@@ -444,17 +461,17 @@ export default function InventoryClient() {
   }
 
   function editItem(it: Item) {
-    setEditingId(it.id);
-    setEditingBatchId(it.batches[0]?.id || null);
-    setName(it.name);
-    setCategory(it.category);
-    setLocation(it.location);
-    setQty(it.batches[0]?.quantityText || "1");
     const itemCost = it.batches[0]?.costCents ?? it.defaultCostCents;
-    setCost(itemCost ? (itemCost / 100).toFixed(2) : "");
-    setParLevel(it.parLevel);
-    // Scroll to form
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setEditModal({
+      id: it.id,
+      batchId: it.batches[0]?.id || null,
+      name: it.name,
+      category: it.category,
+      location: it.location,
+      qty: it.batches[0]?.quantityText || "1",
+      cost: itemCost ? (itemCost / 100).toFixed(2) : "",
+      parLevel: it.parLevel,
+    });
   }
 
   async function confirmItem(id: string) {
@@ -469,6 +486,44 @@ export default function InventoryClient() {
       setToast({ message: "Item confirmed — stale timer reset", type: "success" });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : "Failed to confirm item", type: "error" });
+    }
+  }
+
+  function openDiscard(it: Item) {
+    const cost = it.batches[0]?.costCents ?? it.defaultCostCents;
+    setDiscardModal({
+      name: it.name,
+      category: it.category,
+      costCents: cost,
+      qty: it.batches[0]?.quantityText || "1",
+      reason: "EXPIRED",
+      notes: "",
+    });
+  }
+
+  async function submitDiscard() {
+    if (!discardModal) return;
+    setDiscarding(true);
+    try {
+      const res = await fetch("/api/waste", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          itemName: discardModal.name,
+          category: discardModal.category,
+          quantityText: discardModal.qty,
+          reason: discardModal.reason,
+          costCents: discardModal.costCents,
+          notes: discardModal.notes || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to log waste");
+      setToast({ message: `"${discardModal.name}" logged as waste`, type: "success" });
+      setDiscardModal(null);
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : "Failed to log waste", type: "error" });
+    } finally {
+      setDiscarding(false);
     }
   }
 
@@ -514,8 +569,8 @@ export default function InventoryClient() {
 
   return (
     <>
-      <div className="card" style={editingId ? { border: "2px solid var(--accent, #4a9eff)" } : undefined}>
-        <h3>{editingId ? "Edit Item" : "Quick Add"}</h3>
+      <div className="card">
+        <h3>Quick Add</h3>
         <div className="row">
           <input placeholder="item name (e.g., canned chickpeas)" value={name} onChange={e=>setName(e.target.value)} />
           <input style={{maxWidth:140}} placeholder="qty (e.g., 2 cans)" value={qty} onChange={e=>setQty(e.target.value)} />
@@ -527,11 +582,10 @@ export default function InventoryClient() {
           <select value={location} onChange={e=>setLocation(e.target.value)}>
             {locations.map(l=><option key={l} value={l}>{l}</option>)}
           </select>
-          <button onClick={addItem} disabled={saving}>{saving ? "Saving..." : editingId ? "Update" : "Add"}</button>
-          {editingId && <button onClick={cancelEdit} style={{color: "#888"}}>Cancel</button>}
+          <button onClick={addItem} disabled={saving}>{saving ? "Saving..." : "Add"}</button>
           <button onClick={refresh} disabled={loading}>{loading ? "Refreshing..." : "Refresh"}</button>
         </div>
-        <p><small className="muted">{editingId ? "Editing item. Click Update to save changes or Cancel to discard." : "Names are normalized to lowercase for matching."}</small></p>
+        <p><small className="muted">Names are normalized to lowercase for matching.</small></p>
       </div>
 
       <div className="card">
@@ -791,15 +845,22 @@ Freezer:
       </div>
 
       {loading ? (
-        <div className="loading-state">
-          <span className="spinner large"></span>
-          <span>Loading inventory...</span>
+        <div>
+          {[1, 2, 3].map(n => (
+            <div key={n} className="skeleton-card">
+              <div className="skeleton skeleton-heading" />
+              <div className="skeleton skeleton-line medium" />
+              <div className="skeleton skeleton-line" />
+              <div className="skeleton skeleton-line short" />
+            </div>
+          ))}
         </div>
       ) : items.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📦</div>
           <h3>No items yet</h3>
-          <p>Add your first inventory item using Quick Add above.</p>
+          <p>Add your first inventory item using Quick Add above, or scan your kitchen with Capture.</p>
+          <a href="/onboard" className="empty-state-action">Start onboarding</a>
         </div>
       ) : grouped.length === 0 ? (
         <div className="empty-state">
@@ -869,6 +930,7 @@ Freezer:
                       <button onClick={() => confirmItem(it.id)} title="Still in stock — reset stale timer" style={{marginRight: 4, padding: "2px 8px", color: "#3a3"}}>✓ Still here</button>
                     )}
                     <button onClick={() => editItem(it)} style={{marginRight: 4, padding: "2px 8px"}}>Edit</button>
+                    <button onClick={() => openDiscard(it)} style={{marginRight: 4, padding: "2px 8px", color: "#c90"}} title="Log as wasted/discarded">Discard</button>
                     <button onClick={() => promptDelete(it.id, it.name)} style={{padding: "2px 8px", color: "#c44"}}>Delete</button>
                   </td>
                 </tr>
@@ -878,6 +940,146 @@ Freezer:
         </div>
         );
       })}
+
+      {/* Edit Item Modal */}
+      {editModal && (
+        <Modal
+          open={true}
+          onClose={() => setEditModal(null)}
+          title="Edit Item"
+          maxWidth={480}
+          actions={
+            <>
+              <button onClick={() => setEditModal(null)} style={{color:"#888"}}>Cancel</button>
+              <button onClick={saveEdit} disabled={saving}>{saving ? "Saving..." : "Update"}</button>
+            </>
+          }
+        >
+          <div style={{display:"flex", flexDirection:"column", gap:10}}>
+            <div>
+              <label style={{display:"block", marginBottom:4, fontSize:13}}>Name</label>
+              <input
+                value={editModal.name}
+                onChange={e => setEditModal({...editModal, name: e.target.value})}
+                style={{width:"100%"}}
+                autoFocus
+              />
+            </div>
+            <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+              <div style={{flex:"1 1 100px"}}>
+                <label style={{display:"block", marginBottom:4, fontSize:13}}>Quantity</label>
+                <input
+                  value={editModal.qty}
+                  onChange={e => setEditModal({...editModal, qty: e.target.value})}
+                  style={{width:"100%"}}
+                />
+              </div>
+              <div style={{flex:"1 1 80px"}}>
+                <label style={{display:"block", marginBottom:4, fontSize:13}}>Cost $</label>
+                <input
+                  value={editModal.cost}
+                  onChange={e => setEditModal({...editModal, cost: e.target.value})}
+                  type="number" step="0.01" min="0"
+                  style={{width:"100%"}}
+                />
+              </div>
+              <div style={{flex:"0 0 70px"}}>
+                <label style={{display:"block", marginBottom:4, fontSize:13}}>Par</label>
+                <input
+                  value={editModal.parLevel ?? ""}
+                  onChange={e => setEditModal({...editModal, parLevel: e.target.value ? parseInt(e.target.value) : null})}
+                  type="number" min="0"
+                  style={{width:"100%"}}
+                  title="Par level (min batches to keep on hand)"
+                />
+              </div>
+            </div>
+            <div style={{display:"flex", gap:8}}>
+              <div style={{flex:1}}>
+                <label style={{display:"block", marginBottom:4, fontSize:13}}>Category</label>
+                <select
+                  value={editModal.category}
+                  onChange={e => setEditModal({...editModal, category: e.target.value})}
+                  style={{width:"100%"}}
+                >
+                  {categories.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div style={{flex:1}}>
+                <label style={{display:"block", marginBottom:4, fontSize:13}}>Location</label>
+                <select
+                  value={editModal.location}
+                  onChange={e => setEditModal({...editModal, location: e.target.value})}
+                  style={{width:"100%"}}
+                >
+                  {locations.map(l=><option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Discard (Waste Log) Modal */}
+      {discardModal && (
+        <Modal
+          open={true}
+          onClose={() => setDiscardModal(null)}
+          title={`Discard: ${discardModal.name}`}
+          maxWidth={420}
+          actions={
+            <>
+              <button onClick={() => setDiscardModal(null)} style={{color:"#888"}}>Cancel</button>
+              <button onClick={submitDiscard} disabled={discarding}>{discarding ? "Logging..." : "Log Waste"}</button>
+            </>
+          }
+        >
+          <div style={{display:"flex", flexDirection:"column", gap:10}}>
+            <div>
+              <label style={{display:"block", marginBottom:4, fontSize:13}}>Quantity discarded</label>
+              <input
+                value={discardModal.qty}
+                onChange={e => setDiscardModal({...discardModal, qty: e.target.value})}
+                style={{width:"100%"}}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label style={{display:"block", marginBottom:4, fontSize:13}}>Reason</label>
+              <select
+                value={discardModal.reason}
+                onChange={e => setDiscardModal({...discardModal, reason: e.target.value})}
+                style={{width:"100%"}}
+              >
+                <option value="EXPIRED">Expired</option>
+                <option value="SPOILED">Spoiled</option>
+                <option value="UNUSED">Unused / not needed</option>
+                <option value="LEFTOVER">Leftover not eaten</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div>
+              <label style={{display:"block", marginBottom:4, fontSize:13}}>Estimated cost $</label>
+              <input
+                value={discardModal.costCents != null ? (discardModal.costCents / 100).toFixed(2) : ""}
+                onChange={e => setDiscardModal({...discardModal, costCents: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : null})}
+                type="number" step="0.01" min="0"
+                style={{width:"100%"}}
+                placeholder="optional"
+              />
+            </div>
+            <div>
+              <label style={{display:"block", marginBottom:4, fontSize:13}}>Notes</label>
+              <input
+                value={discardModal.notes}
+                onChange={e => setDiscardModal({...discardModal, notes: e.target.value})}
+                style={{width:"100%"}}
+                placeholder="optional"
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
 
       <ConfirmModal
         open={!!deleteModal}

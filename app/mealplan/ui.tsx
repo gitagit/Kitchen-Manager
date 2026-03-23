@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { normName } from "@/lib/normalize";
+import Modal, { Toast } from "@/app/components/Modal";
 
 type PlanRecipe = {
   title: string;
@@ -81,9 +82,13 @@ export default function MealPlanClient() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
-  const [toast, setToast] = useState<string | null>(null);
   const [showBatchPrep, setShowBatchPrep] = useState(false);
   const [goals, setGoals] = useState<NutritionGoals>({ calorieGoal: null, proteinGoalG: null, carbsGoalG: null, fatGoalG: null });
+  const [dragOver, setDragOver] = useState<string | null>(null);
+
+  // Toast
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const clearToast = useCallback(() => setToast(null), []);
 
   // Modal state for editing a slot
   const [editingSlot, setEditingSlot] = useState<{ date: Date; slot: string } | null>(null);
@@ -163,7 +168,6 @@ export default function MealPlanClient() {
     setSelectedRecipeId(existing?.recipeId || "");
     setNotes(existing?.notes || "");
     setRecipeSearch("");
-    // Set servings from existing plan or recipe default
     if (existing?.servings) {
       setServings(existing.servings);
     } else if (existing?.recipeId) {
@@ -177,7 +181,6 @@ export default function MealPlanClient() {
   function selectRecipe(recipeId: string) {
     setSelectedRecipeId(recipeId);
     setRecipeSearch("");
-    // Set default servings from recipe
     const recipe = recipes.find(r => r.id === recipeId);
     if (recipe) {
       setServings(recipe.servings);
@@ -215,17 +218,95 @@ export default function MealPlanClient() {
     await fetchPlans();
   }
 
+  async function movePlan(fromDate: string, fromSlot: string, toDate: string, toSlot: string) {
+    if (fromDate === toDate && fromSlot === toSlot) return;
+    const source = plans.find(p => p.date.startsWith(fromDate) && p.slot === fromSlot);
+    if (!source?.recipeId) return;
+    await fetch("/api/mealplan", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        date: toDate,
+        slot: toSlot,
+        recipeId: source.recipeId,
+        notes: source.notes || undefined,
+        servings: source.servings || undefined
+      })
+    });
+    await fetch(`/api/mealplan?id=${source.id}`, { method: "DELETE" });
+    await fetchPlans();
+    setToast({ message: "Meal moved", type: "success" });
+  }
+
+  const [autoFilling, setAutoFilling] = useState(false);
+
+  async function autoFillFromExpiring() {
+    setAutoFilling(true);
+    try {
+      const res = await fetch("/api/suggest");
+      if (!res.ok) { setToast({ message: "Failed to get suggestions", type: "error" }); return; }
+      const data = await res.json();
+      const suggested: { recipeId: string; title: string }[] = data.results ?? [];
+      if (!suggested.length) { setToast({ message: "No recipe suggestions available", type: "info" }); return; }
+
+      const emptySlots: { date: string; slot: string }[] = [];
+      for (const date of weekDates) {
+        for (const slot of ["dinner", "lunch", "breakfast"] as const) {
+          if (!getPlan(date, slot)?.recipeId) {
+            emptySlots.push({ date: formatDate(date), slot });
+          }
+        }
+      }
+      if (!emptySlots.length) { setToast({ message: "No empty slots this week", type: "info" }); return; }
+
+      const usedRecipeIds = new Set(plans.filter(p => p.recipeId).map(p => p.recipeId));
+      let filled = 0;
+      for (const slot of emptySlots) {
+        const recipe = suggested.find(s => !usedRecipeIds.has(s.recipeId));
+        if (!recipe) break;
+        usedRecipeIds.add(recipe.recipeId);
+        await fetch("/api/mealplan", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ date: slot.date, slot: slot.slot, recipeId: recipe.recipeId }),
+        });
+        filled++;
+      }
+
+      await fetchPlans();
+      setToast({ message: `Auto-filled ${filled} meal${filled !== 1 ? "s" : ""} from top suggestions`, type: "success" });
+    } finally {
+      setAutoFilling(false);
+    }
+  }
+
   async function sendToGrocery() {
     const ids = [...new Set(plans.filter(p => p.recipeId).map(p => p.recipeId as string))];
-    if (!ids.length) { setToast("No recipes planned this week"); return; }
+    if (!ids.length) { setToast({ message: "No recipes planned this week", type: "info" }); return; }
     const res = await fetch("/api/grocery/plan", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ recipeIds: ids })
     });
     const data = await res.json();
-    setToast(`${data.created ?? 0} items added to grocery list`);
+    setToast({ message: `${data.created ?? 0} items added to grocery list`, type: "success" });
   }
+
+  // Batch prep data
+  const batchPrepData = useMemo(() => {
+    const weekRecipes = recipes.filter(r => plans.some(p => p.recipeId === r.id));
+    const ingMap = new Map<string, { display: string; entries: string[] }>();
+    for (const recipe of weekRecipes) {
+      for (const ing of recipe.ingredients) {
+        const key = normName(ing.name);
+        if (!ingMap.has(key)) ingMap.set(key, { display: ing.name, entries: [] });
+        const qty = ing.quantityText ? `${ing.quantityText} (${recipe.title})` : recipe.title;
+        ingMap.get(key)!.entries.push(qty);
+      }
+    }
+    const sortedIngs = [...ingMap.values()].sort((a, b) => a.display.localeCompare(b.display));
+    return { weekRecipes, sortedIngs };
+  }, [recipes, plans]);
 
   return (
     <>
@@ -250,7 +331,14 @@ export default function MealPlanClient() {
             disabled={!plans.some(p => p.recipeId)}
             title="View combined prep list for this week"
           >
-            📋 Batch prep
+            Batch prep
+          </button>
+          <button
+            onClick={autoFillFromExpiring}
+            disabled={autoFilling}
+            title="Auto-fill empty slots with top recipe suggestions (prioritizes expiring ingredients)"
+          >
+            {autoFilling ? "Filling..." : "Auto-fill"}
           </button>
         </div>
         {weekOffset !== 0 && (
@@ -281,14 +369,33 @@ export default function MealPlanClient() {
                 {weekDates.map(date => {
                   const plan = getPlan(date, slot);
                   const hasRecipe = plan?.recipeId;
+                  const cellKey = `${formatDate(date)}:${slot}`;
                   return (
                     <td
                       key={date.toISOString()}
+                      className={`meal-cell${dragOver === cellKey ? " drag-over" : ""}`}
+                      draggable={!!hasRecipe}
                       onClick={() => openEditor(date, slot)}
+                      onDragStart={e => {
+                        e.dataTransfer.setData("text/plain", `${formatDate(date)}:${slot}`);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={e => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        setDragOver(cellKey);
+                      }}
+                      onDragLeave={() => setDragOver(null)}
+                      onDrop={e => {
+                        e.preventDefault();
+                        setDragOver(null);
+                        const [fromDate, fromSlot] = e.dataTransfer.getData("text/plain").split(":");
+                        if (fromDate && fromSlot) movePlan(fromDate, fromSlot, formatDate(date), slot);
+                      }}
                       style={{
                         padding: 8,
                         border: "1px solid rgba(127,127,127,0.2)",
-                        cursor: "pointer",
+                        cursor: hasRecipe ? "grab" : "pointer",
                         verticalAlign: "top",
                         minHeight: 60,
                         background: hasRecipe ? "rgba(100,180,100,0.1)" : "transparent"
@@ -314,9 +421,10 @@ export default function MealPlanClient() {
       </div>
 
       {loading && (
-        <div className="loading-state" style={{padding: 16}}>
-          <span className="spinner"></span>
-          <span>Loading...</span>
+        <div style={{ padding: 16 }}>
+          <div className="skeleton skeleton-line medium" />
+          <div className="skeleton skeleton-line" />
+          <div className="skeleton skeleton-line short" />
         </div>
       )}
 
@@ -365,11 +473,11 @@ export default function MealPlanClient() {
                       <td style={{ padding: "4px 8px", opacity: 0.65, whiteSpace: "nowrap" }}>{label}</td>
                       {dayMacrosList.map((m, i) => (
                         <td key={i} style={{ textAlign: "center", padding: "4px 8px" }}>
-                          {m ? `${m[key]}${unit === "kcal" ? "" : "g"}` : <span style={{ opacity: 0.25 }}>—</span>}
+                          {m ? `${m[key]}${unit === "kcal" ? "" : "g"}` : <span style={{ opacity: 0.25 }}>&mdash;</span>}
                         </td>
                       ))}
                       <td style={{ textAlign: "center", padding: "4px 8px", fontWeight: 500 }}>
-                        {daysWithData > 0 ? `${weekTotals[key]}${unit === "kcal" ? "" : "g"}` : <span style={{ opacity: 0.25 }}>—</span>}
+                        {daysWithData > 0 ? `${weekTotals[key]}${unit === "kcal" ? "" : "g"}` : <span style={{ opacity: 0.25 }}>&mdash;</span>}
                       </td>
                     </tr>
                   ))}
@@ -377,7 +485,7 @@ export default function MealPlanClient() {
               </table>
             </div>
 
-            {/* Weekly progress bars (only shown when goals are set) */}
+            {/* Weekly progress bars */}
             {macroRows.some(r => r.goal != null) && (
               <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
                 {macroRows.filter(r => r.goal != null).map(({ label, key, unit, goal }) => {
@@ -389,10 +497,10 @@ export default function MealPlanClient() {
                     <div key={label}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3, opacity: 0.8 }}>
                         <span>{label}</span>
-                        <span>{total}{unit === "kcal" ? " kcal" : "g"} / {weekGoal}{unit === "kcal" ? " kcal" : "g"} weekly goal · {pct}%</span>
+                        <span>{total}{unit === "kcal" ? " kcal" : "g"} / {weekGoal}{unit === "kcal" ? " kcal" : "g"} weekly goal &middot; {pct}%</span>
                       </div>
-                      <div style={{ height: 6, borderRadius: 3, background: "rgba(127,127,127,0.15)", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 3, transition: "width 0.3s" }} />
+                      <div className="progress-track">
+                        <div className="progress-fill" style={{ width: `${pct}%`, background: color }} />
                       </div>
                     </div>
                   );
@@ -403,214 +511,163 @@ export default function MealPlanClient() {
         );
       })()}
 
-      {/* Edit Modal */}
+      {/* Edit Slot Modal */}
       {editingSlot && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000
-          }}
-          onClick={() => setEditingSlot(null)}
+        <Modal
+          open={true}
+          onClose={() => setEditingSlot(null)}
+          title={`${editingSlot.slot.charAt(0).toUpperCase() + editingSlot.slot.slice(1)} \u2014 ${formatDisplayDate(editingSlot.date)}`}
+          maxWidth={420}
+          actions={
+            <>
+              <button onClick={clearSlot} className="btn-danger">Clear</button>
+              <button onClick={() => setEditingSlot(null)} style={{ color: "#888" }}>Cancel</button>
+              <button onClick={savePlan}>Save</button>
+            </>
+          }
         >
-          <div
-            className="card"
-            style={{ minWidth: 320, maxWidth: 400 }}
-            onClick={e => e.stopPropagation()}
-          >
-            <h3 style={{ marginTop: 0 }}>
-              {editingSlot.slot.charAt(0).toUpperCase() + editingSlot.slot.slice(1)} - {formatDisplayDate(editingSlot.date)}
-            </h3>
-
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: "block", marginBottom: 4 }}>Recipe</label>
-              {selectedRecipeId ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "rgba(100,180,100,0.15)", borderRadius: 6 }}>
-                  <span style={{ flex: 1 }}>{getRecipeTitle(selectedRecipeId)}</span>
-                  <button onClick={() => setSelectedRecipeId("")} style={{ padding: "2px 8px", fontSize: 12 }}>Change</button>
-                </div>
-              ) : (
-                <div style={{ position: "relative" }}>
-                  <input
-                    type="text"
-                    value={recipeSearch}
-                    onChange={e => setRecipeSearch(e.target.value)}
-                    placeholder="Search recipes..."
-                    style={{ width: "100%" }}
-                    autoFocus
-                  />
-                  {(recipeSearch || filteredRecipes.length > 0) && (
-                    <div style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      maxHeight: 200,
-                      overflowY: "auto",
-                      background: "var(--card-bg, #fff)",
-                      border: "1px solid rgba(127,127,127,0.3)",
-                      borderRadius: 6,
-                      marginTop: 4,
-                      zIndex: 10
-                    }}>
-                      <div
-                        onClick={() => { setSelectedRecipeId(""); setRecipeSearch(""); }}
-                        style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid rgba(127,127,127,0.1)", color: "#888" }}
-                      >
-                        -- No recipe (notes only) --
-                      </div>
-                      {filteredRecipes.slice(0, 20).map(r => (
-                        <div
-                          key={r.id}
-                          onClick={() => selectRecipe(r.id)}
-                          style={{
-                            padding: "8px 12px",
-                            cursor: "pointer",
-                            borderBottom: "1px solid rgba(127,127,127,0.1)"
-                          }}
-                          onMouseEnter={e => (e.currentTarget.style.background = "rgba(127,127,127,0.1)")}
-                          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                        >
-                          {r.title}
-                          <small className="muted" style={{ marginLeft: 8 }}>serves {r.servings}</small>
-                        </div>
-                      ))}
-                      {filteredRecipes.length > 20 && (
-                        <div style={{ padding: "8px 12px", color: "#888", fontSize: 12 }}>
-                          ...and {filteredRecipes.length - 20} more. Type to filter.
-                        </div>
-                      )}
-                      {filteredRecipes.length === 0 && recipeSearch && (
-                        <div style={{ padding: "8px 12px", color: "#888" }}>No recipes match &quot;{recipeSearch}&quot;</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {selectedRecipeId && (
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", marginBottom: 4 }}>Servings</label>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: "block", marginBottom: 4 }}>Recipe</label>
+            {selectedRecipeId ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "rgba(100,180,100,0.15)", borderRadius: 6 }}>
+                <span style={{ flex: 1 }}>{getRecipeTitle(selectedRecipeId)}</span>
+                <button onClick={() => setSelectedRecipeId("")} style={{ padding: "2px 8px", fontSize: 12 }}>Change</button>
+              </div>
+            ) : (
+              <div style={{ position: "relative" }}>
                 <input
-                  type="number"
-                  value={servings}
-                  onChange={e => setServings(parseInt(e.target.value) || 2)}
-                  min={1}
-                  style={{ width: 80 }}
+                  type="text"
+                  value={recipeSearch}
+                  onChange={e => setRecipeSearch(e.target.value)}
+                  placeholder="Search recipes..."
+                  style={{ width: "100%" }}
+                  autoFocus
                 />
-                <small className="muted" style={{ marginLeft: 8 }}>
-                  (recipe default: {recipes.find(r => r.id === selectedRecipeId)?.servings || 2})
-                </small>
+                {(recipeSearch || filteredRecipes.length > 0) && (
+                  <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    maxHeight: 200,
+                    overflowY: "auto",
+                    background: "var(--card-bg, #fff)",
+                    border: "1px solid rgba(127,127,127,0.3)",
+                    borderRadius: 6,
+                    marginTop: 4,
+                    zIndex: 10
+                  }}>
+                    <div
+                      onClick={() => { setSelectedRecipeId(""); setRecipeSearch(""); }}
+                      style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid rgba(127,127,127,0.1)", color: "#888" }}
+                    >
+                      -- No recipe (notes only) --
+                    </div>
+                    {filteredRecipes.slice(0, 20).map(r => (
+                      <div
+                        key={r.id}
+                        onClick={() => selectRecipe(r.id)}
+                        style={{
+                          padding: "8px 12px",
+                          cursor: "pointer",
+                          borderBottom: "1px solid rgba(127,127,127,0.1)"
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "rgba(127,127,127,0.1)")}
+                        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                      >
+                        {r.title}
+                        <small className="muted" style={{ marginLeft: 8 }}>serves {r.servings}</small>
+                      </div>
+                    ))}
+                    {filteredRecipes.length > 20 && (
+                      <div style={{ padding: "8px 12px", color: "#888", fontSize: 12 }}>
+                        ...and {filteredRecipes.length - 20} more. Type to filter.
+                      </div>
+                    )}
+                    {filteredRecipes.length === 0 && recipeSearch && (
+                      <div style={{ padding: "8px 12px", color: "#888" }}>No recipes match &quot;{recipeSearch}&quot;</div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
+          </div>
 
+          {selectedRecipeId && (
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: "block", marginBottom: 4 }}>Notes</label>
-              <textarea
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                rows={2}
-                style={{ width: "100%" }}
-                placeholder="e.g., Leftovers, Eating out..."
+              <label style={{ display: "block", marginBottom: 4 }}>Servings</label>
+              <input
+                type="number"
+                value={servings}
+                onChange={e => setServings(parseInt(e.target.value) || 2)}
+                min={1}
+                style={{ width: 80 }}
               />
-            </div>
-
-            <div className="row">
-              <button onClick={savePlan}>Save</button>
-              <button onClick={clearSlot} style={{ color: "#c44" }}>Clear</button>
-              <button onClick={() => setEditingSlot(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showBatchPrep && (() => {
-        const weekRecipes = recipes.filter(r => plans.some(p => p.recipeId === r.id));
-        const ingMap = new Map<string, { display: string; entries: string[] }>();
-        for (const recipe of weekRecipes) {
-          for (const ing of recipe.ingredients) {
-            const key = normName(ing.name);
-            if (!ingMap.has(key)) ingMap.set(key, { display: ing.name, entries: [] });
-            const qty = ing.quantityText ? `${ing.quantityText} (${recipe.title})` : recipe.title;
-            ingMap.get(key)!.entries.push(qty);
-          }
-        }
-        const sortedIngs = [...ingMap.values()].sort((a, b) => a.display.localeCompare(b.display));
-
-        return (
-          <div
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
-            onClick={() => setShowBatchPrep(false)}
-          >
-            <div
-              className="card"
-              style={{ minWidth: 340, maxWidth: 680, width: "90vw", maxHeight: "85vh", overflowY: "auto" }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <h3 style={{ margin: 0 }}>📋 Batch Prep</h3>
-                <button onClick={() => setShowBatchPrep(false)} style={{ padding: "2px 10px" }}>✕</button>
-              </div>
-              <small className="muted">
-                {weekDates[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {weekDates[6].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              <small className="muted" style={{ marginLeft: 8 }}>
+                (recipe default: {recipes.find(r => r.id === selectedRecipeId)?.servings || 2})
               </small>
-
-              <h4 style={{ marginTop: 16, marginBottom: 8 }}>This week&apos;s recipes</h4>
-              <ul style={{ margin: 0, paddingLeft: 20 }}>
-                {weekRecipes.map(r => (
-                  <li key={r.id} style={{ marginBottom: 4 }}>
-                    {r.title}
-                    <small className="muted" style={{ marginLeft: 8 }}>{r.totalMin}m • serves {r.servings}</small>
-                  </li>
-                ))}
-              </ul>
-
-              <h4 style={{ marginTop: 16, marginBottom: 8 }}>Combined ingredients</h4>
-              <ul style={{ margin: 0, paddingLeft: 20 }}>
-                {sortedIngs.map(({ display, entries }) => (
-                  <li key={display} style={{ marginBottom: 4 }}>
-                    <strong>{display}</strong>
-                    <small className="muted" style={{ marginLeft: 8 }}>{entries.join(" · ")}</small>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="row" style={{ marginTop: 16 }}>
-                <button onClick={() => { sendToGrocery(); setShowBatchPrep(false); }}>
-                  &rarr; Grocery list
-                </button>
-                <button onClick={() => setShowBatchPrep(false)}>Close</button>
-              </div>
             </div>
-          </div>
-        );
-      })()}
+          )}
 
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 24,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "rgba(40,40,40,0.92)",
-            color: "#fff",
-            padding: "10px 20px",
-            borderRadius: 8,
-            fontSize: 14,
-            zIndex: 2000,
-            cursor: "pointer"
-          }}
-          onClick={() => setToast(null)}
-        >
-          {toast}
-        </div>
+          <div>
+            <label style={{ display: "block", marginBottom: 4 }}>Notes</label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              style={{ width: "100%" }}
+              placeholder="e.g., Leftovers, Eating out..."
+            />
+          </div>
+        </Modal>
       )}
+
+      {/* Batch Prep Modal */}
+      {showBatchPrep && (
+        <Modal
+          open={true}
+          onClose={() => setShowBatchPrep(false)}
+          title="Batch Prep"
+          maxWidth={680}
+          actions={
+            <>
+              <button onClick={() => { sendToGrocery(); setShowBatchPrep(false); }}>
+                &rarr; Grocery list
+              </button>
+              <button onClick={() => setShowBatchPrep(false)} style={{ color: "#888" }}>Close</button>
+            </>
+          }
+        >
+          <div style={{ maxHeight: "65vh", overflowY: "auto" }}>
+            <small className="muted">
+              {weekDates[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} &ndash; {weekDates[6].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            </small>
+
+            <h4 style={{ marginTop: 16, marginBottom: 8 }}>This week&apos;s recipes</h4>
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {batchPrepData.weekRecipes.map(r => (
+                <li key={r.id} style={{ marginBottom: 4 }}>
+                  {r.title}
+                  <small className="muted" style={{ marginLeft: 8 }}>{r.totalMin}m &bull; serves {r.servings}</small>
+                </li>
+              ))}
+            </ul>
+
+            <h4 style={{ marginTop: 16, marginBottom: 8 }}>Combined ingredients</h4>
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {batchPrepData.sortedIngs.map(({ display, entries }) => (
+                <li key={display} style={{ marginBottom: 4 }}>
+                  <strong>{display}</strong>
+                  <small className="muted" style={{ marginLeft: 8 }}>{entries.join(" \u00b7 ")}</small>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Modal>
+      )}
+
+      {/* Toast */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
     </>
   );
 }

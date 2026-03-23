@@ -29,6 +29,7 @@ type Recipe = {
   proteinG: number | null;
   carbsG: number | null;
   fatG: number | null;
+  favorite: boolean;
 };
 
 const sources = ["PERSONAL", "FAMILY", "WEB", "COOKBOOK", "FRIEND"];
@@ -83,6 +84,7 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
   const [filterSource, setFilterSource] = useState("");
   const [filterTag, setFilterTag] = useState("");
   const [filterDuplicates, setFilterDuplicates] = useState(false);
+  const [filterFavorites, setFilterFavorites] = useState(false);
 
   // UI collapse state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -430,13 +432,16 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
       if (filterSource && r.source !== filterSource) return false;
       if (filterTag && !r.tags?.includes(filterTag)) return false;
       if (filterDuplicates && !duplicateMap.has(r.id)) return false;
+      if (filterFavorites && !r.favorite) return false;
       return true;
     });
-  }, [recipes, searchQuery, filterCuisine, filterDifficulty, filterComplexity, filterSource, filterTag, filterDuplicates, duplicateMap]);
+  }, [recipes, searchQuery, filterCuisine, filterDifficulty, filterComplexity, filterSource, filterTag, filterDuplicates, filterFavorites, duplicateMap]);
 
   const sorted = useMemo(() => filtered.slice().sort((a,b)=>a.title.localeCompare(b.title)), [filtered]);
 
-  const hasFilters = searchQuery || filterCuisine || filterDifficulty !== "" || filterComplexity || filterSource || filterTag || filterDuplicates;
+  const favoriteCount = useMemo(() => recipes.filter(r => r.favorite).length, [recipes]);
+
+  const hasFilters = searchQuery || filterCuisine || filterDifficulty !== "" || filterComplexity || filterSource || filterTag || filterDuplicates || filterFavorites;
 
   function clearFilters() {
     setSearchQuery("");
@@ -446,6 +451,18 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
     setFilterSource("");
     setFilterTag("");
     setFilterDuplicates(false);
+    setFilterFavorites(false);
+  }
+
+  async function toggleFavorite(id: string, current: boolean) {
+    const res = await fetch("/api/recipes", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id, favorite: !current }),
+    });
+    if (res.ok) {
+      setRecipes(prev => prev.map(r => r.id === id ? { ...r, favorite: !current } : r));
+    }
   }
 
   function promptDelete(id: string, recipeTitle: string) {
@@ -870,7 +887,7 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
         >
           <span className={`collapse-icon ${showFilters ? "open" : ""}`}>▶</span>
           Filter Recipes
-          {hasFilters && <span style={{marginLeft: 8, fontSize: 12, opacity: 0.7}}>({Object.values({searchQuery, filterCuisine, filterDifficulty, filterComplexity, filterSource, filterTag}).filter(Boolean).length} active)</span>}
+          {hasFilters && <span style={{marginLeft: 8, fontSize: 12, opacity: 0.7}}>({Object.values({searchQuery, filterCuisine, filterDifficulty, filterComplexity, filterSource, filterTag, filterFavorites}).filter(Boolean).length} active)</span>}
         </h3>
 
         {showFilters && (
@@ -905,6 +922,16 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
                 {sources.map(s => <option key={s} value={s}>{s.toLowerCase()}</option>)}
               </select>
               <button
+                onClick={() => setFilterFavorites(f => !f)}
+                style={{
+                  background: filterFavorites ? "var(--accent)" : undefined,
+                  color: filterFavorites ? "#fff" : undefined,
+                  border: filterFavorites ? "none" : undefined
+                }}
+              >
+                {filterFavorites ? "Showing favorites" : `Favorites${favoriteCount > 0 ? ` (${favoriteCount})` : ""}`}
+              </button>
+              <button
                 onClick={() => setFilterDuplicates(f => !f)}
                 style={{
                   background: filterDuplicates ? "#c80" : undefined,
@@ -926,15 +953,22 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
       </div>
 
       {loading ? (
-        <div className="loading-state">
-          <span className="spinner large"></span>
-          <span>Loading recipes...</span>
+        <div>
+          {[1, 2, 3, 4].map(n => (
+            <div key={n} className="skeleton-card">
+              <div className="skeleton skeleton-heading" style={{ width: "50%" }} />
+              <div className="skeleton skeleton-line medium" />
+              <div className="skeleton skeleton-line" />
+              <div className="skeleton skeleton-line short" />
+            </div>
+          ))}
         </div>
       ) : recipes.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">📖</div>
           <h3>No recipes yet</h3>
-          <p>Add your first recipe using the form above to get started.</p>
+          <p>Add your first recipe using the form above, or head to Suggest to generate ideas from your inventory.</p>
+          <a href="/suggest" className="empty-state-action">Get suggestions</a>
         </div>
       ) : sorted.length === 0 ? (
         <div className="empty-state">
@@ -962,9 +996,26 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
               onClick={() => toggleExpanded(r.id)}
             >
               <div>
-                <h3 style={{margin:"0 0 4px 0"}}>
+                <h3 style={{margin:"0 0 4px 0", display:"flex", alignItems:"center"}}>
                   <span style={{marginRight:8, opacity:0.5}}>{isExpanded ? "▼" : "▶"}</span>
                   {r.title}
+                  <button
+                    onClick={e => { e.stopPropagation(); toggleFavorite(r.id, r.favorite); }}
+                    aria-label={r.favorite ? "Remove from favorites" : "Add to favorites"}
+                    title={r.favorite ? "Remove from favorites" : "Add to favorites"}
+                    style={{
+                      marginLeft: 8,
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 16,
+                      padding: "0 4px",
+                      opacity: r.favorite ? 1 : 0.3,
+                      transition: "opacity 0.15s",
+                    }}
+                  >
+                    {r.favorite ? "\u2764\uFE0F" : "\u2661"}
+                  </button>
                 </h3>
                 <small className="muted">
                   {r.totalMin}m total • {r.handsOnMin}m hands-on • serves {r.servings}{r.servingsMax ? `-${r.servingsMax}` : ""} • difficulty {r.difficulty}
@@ -1272,20 +1323,6 @@ export default function RecipesClient({ initialSearch }: RecipesClientProps) {
       })}
         </>
       )}
-
-      <style jsx>{`
-        .tag {
-          display: inline-block;
-          padding: 2px 8px;
-          margin-right: 6px;
-          border-radius: 12px;
-          font-size: 12px;
-          background: rgba(127,127,127,0.15);
-        }
-        .tag.tech {
-          background: rgba(100,150,255,0.2);
-        }
-      `}</style>
 
       <Modal
         open={!!refineModal}

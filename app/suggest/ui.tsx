@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { normName } from "@/lib/normalize";
+import Modal, { Toast } from "@/app/components/Modal";
 
 type Result = {
   recipeId: string;
@@ -69,30 +70,26 @@ export default function SuggestClient() {
   const [mustUse, setMustUse] = useState("");
   const [tagsInclude, setTagsInclude] = useState("");
   const [tagsExclude, setTagsExclude] = useState("");
-  
-  // New state
+
   const [cuisine, setCuisine] = useState("");
   const [wantVariety, setWantVariety] = useState(true);
   const [wantGrowth, setWantGrowth] = useState(false);
   const [complexity, setComplexity] = useState<"FAMILIAR"|"STRETCH"|"CHALLENGE"|"ANY">("ANY");
   const [season, setSeason] = useState<"SPRING"|"SUMMER"|"FALL"|"WINTER"|"">("");
 
-  // Technique filter state
   const [availableTechniques, setAvailableTechniques] = useState<{ id: string; name: string; comfort: number }[]>([]);
   const [selectedTechniques, setSelectedTechniques] = useState<string[]>([]);
-  
+
   const [results, setResults] = useState<Result[]>([]);
   const [urgentItems, setUrgentItems] = useState<UrgentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
-  const [saveToast, setSaveToast] = useState<string | null>(null);
 
   // Meal plan form state
   const [mpForm, setMpForm] = useState<{ recipeId: string; title: string } | null>(null);
   const [mpDate, setMpDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [mpSlot, setMpSlot] = useState<"breakfast" | "lunch" | "dinner">("dinner");
   const [mpSaving, setMpSaving] = useState(false);
-  const [mpToast, setMpToast] = useState<string | null>(null);
 
   // Generate state
   const [generatedRecipes, setGeneratedRecipes] = useState<GeneratedRecipe[]>([]);
@@ -110,9 +107,12 @@ export default function SuggestClient() {
   const [logNotes, setLogNotes] = useState("");
   const [logWouldRepeat, setLogWouldRepeat] = useState(false);
   const [logSaving, setLogSaving] = useState(false);
-  const [logSuccess, setLogSuccess] = useState<string | null>(null);
   const [logMatches, setLogMatches] = useState<LogInventoryMatch[]>([]);
   const [logLoadingInventory, setLogLoadingInventory] = useState(false);
+
+  // Unified toast
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const clearToast = useCallback(() => setToast(null), []);
 
   // Fetch user preferences and available techniques on mount
   useEffect(() => {
@@ -216,8 +216,7 @@ export default function SuggestClient() {
         const savedId: string | undefined = data.recipe?.id;
         setSavedIdx(prev => new Set(prev).add(idx));
         if (savedId) setSavedRecipeIds(prev => ({ ...prev, [idx]: savedId }));
-        setSaveToast(`"${recipe.title}" saved to your recipes`);
-        setTimeout(() => setSaveToast(null), 3500);
+        setToast({ message: `"${recipe.title}" saved to your recipes`, type: "success" });
       }
     } finally {
       setSavingIdx(prev => { const s = new Set(prev); s.delete(idx); return s; });
@@ -234,9 +233,8 @@ export default function SuggestClient() {
         body: JSON.stringify({ date: mpDate, slot: mpSlot, recipeId: mpForm.recipeId })
       });
       if (res.ok) {
-        setMpToast(`"${mpForm.title}" added to ${mpSlot} on ${new Date(mpDate + "T12:00:00").toLocaleDateString()}`);
+        setToast({ message: `"${mpForm.title}" added to ${mpSlot} on ${new Date(mpDate + "T12:00:00").toLocaleDateString()}`, type: "success" });
         setMpForm(null);
-        setTimeout(() => setMpToast(null), 4000);
       }
     } finally {
       setMpSaving(false);
@@ -256,7 +254,6 @@ export default function SuggestClient() {
     setLogRating(3);
     setLogNotes("");
     setLogWouldRepeat(false);
-    setLogSuccess(null);
     setLogMatches([]);
     setLogLoadingInventory(true);
     try {
@@ -268,7 +265,6 @@ export default function SuggestClient() {
 
       const matches: LogInventoryMatch[] = [];
       for (const have of haveList) {
-        // Strip swap annotation e.g. "olive oil (swap: vegetable oil)"
         const ingredientName = have.replace(/\s*\(swap:.*\)$/i, "").trim();
         const item = byName.get(normName(ingredientName));
         if (!item) continue;
@@ -279,7 +275,7 @@ export default function SuggestClient() {
           itemName: item.name,
           category: item.category,
           location: item.location,
-          currentQty: batch?.quantityText ?? "—",
+          currentQty: batch?.quantityText ?? "\u2014",
           action: "skip",
           newQty: batch?.quantityText ?? ""
         });
@@ -312,7 +308,6 @@ export default function SuggestClient() {
       });
       if (!res.ok) return;
 
-      // Process inventory deductions
       for (const m of logMatches) {
         if (m.action === "remove") {
           await fetch(`/api/inventory/items?id=${m.itemId}`, { method: "DELETE" });
@@ -332,109 +327,47 @@ export default function SuggestClient() {
       const removed = logMatches.filter(m => m.action === "remove").length;
       const updated = logMatches.filter(m => m.action === "update").length;
       const suffix = removed + updated > 0
-        ? ` · ${removed > 0 ? `${removed} removed` : ""}${removed > 0 && updated > 0 ? ", " : ""}${updated > 0 ? `${updated} updated` : ""} from inventory`
+        ? ` \u00b7 ${removed > 0 ? `${removed} removed` : ""}${removed > 0 && updated > 0 ? ", " : ""}${updated > 0 ? `${updated} updated` : ""} from inventory`
         : "";
 
-      setLogSuccess(logForm.title + suffix);
+      setToast({ message: `Logged "${logForm.title}"${suffix}`, type: "success" });
       setLogForm(null);
       setLogMatches([]);
-      setTimeout(() => setLogSuccess(null), 4000);
     } finally {
       setLogSaving(false);
     }
   }
 
-  function renderLogForm() {
-    return (
-      <div style={{marginTop:12, padding:12, background:"rgba(127,127,127,0.1)", borderRadius:8}}>
-        <div style={{marginBottom:10}}>
-          <label style={{display:"block", marginBottom:4, fontSize:13}}>Rating</label>
-          <div style={{display:"flex", gap:4}}>
-            {[1,2,3,4,5].map(n => (
-              <button
-                key={n}
-                onClick={() => setLogRating(n)}
-                style={{
-                  padding:"4px 10px",
-                  background: n <= logRating ? "rgba(255,180,0,0.3)" : "transparent",
-                  border: "1px solid rgba(127,127,127,0.3)",
-                  borderRadius: 4,
-                  cursor: "pointer"
-                }}
-              >
-                {"★"}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{marginBottom:10}}>
-          <label style={{display:"block", marginBottom:4, fontSize:13}}>Notes (optional)</label>
-          <textarea
-            value={logNotes}
-            onChange={e => setLogNotes(e.target.value)}
-            placeholder="How did it turn out?"
-            rows={2}
-            style={{width:"100%", resize:"vertical"}}
-          />
-        </div>
-        <div style={{marginBottom:10}}>
-          <label style={{display:"flex", alignItems:"center", gap:6, fontSize:13}}>
-            <input
-              type="checkbox"
-              checked={logWouldRepeat}
-              onChange={e => setLogWouldRepeat(e.target.checked)}
-            />
-            Would make again
-          </label>
-        </div>
-        <div style={{marginBottom:10}}>
-          <p style={{margin:"0 0 6px 0", fontSize:13, fontWeight:500}}>Update inventory</p>
-          {logLoadingInventory ? (
-            <p style={{fontSize:12, opacity:0.5}}>Loading inventory...</p>
-          ) : logMatches.length === 0 ? (
-            <p style={{fontSize:12, opacity:0.5}}>No inventory items matched this recipe.</p>
-          ) : (
-            <div style={{display:"flex", flexDirection:"column", gap:6}}>
-              {logMatches.map((m, i) => (
-                <div key={m.itemId} style={{display:"flex", flexWrap:"wrap", alignItems:"center", gap:6, fontSize:13}}>
-                  <span style={{flex:"1 1 120px", minWidth:100}}>{m.itemName}</span>
-                  <span style={{opacity:0.5, fontSize:12, whiteSpace:"nowrap"}}>({m.currentQty})</span>
-                  <select
-                    value={m.action}
-                    onChange={e => updateLogMatch(i, { action: e.target.value as LogInventoryMatch["action"] })}
-                    style={{fontSize:12}}
-                  >
-                    <option value="skip">Keep as is</option>
-                    <option value="remove">Used it all — remove</option>
-                    <option value="update">Update quantity</option>
-                  </select>
-                  {m.action === "update" && (
-                    <input
-                      value={m.newQty}
-                      onChange={e => updateLogMatch(i, { newQty: e.target.value })}
-                      placeholder="new qty..."
-                      style={{width:110, fontSize:12}}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="row">
-          <button onClick={submitLog} disabled={logSaving} style={{padding:"6px 16px"}}>
-            {logSaving ? "Saving..." : "Save"}
-          </button>
-          <button onClick={() => setLogForm(null)} style={{padding:"6px 12px"}}>
-            Cancel
-          </button>
-        </div>
-      </div>
-    );
+  const closeLogForm = useCallback(() => {
+    setLogForm(null);
+    setLogMatches([]);
+  }, []);
+
+  // Active filter chips (derived from state)
+  const activeFilters: { label: string; clear: () => void }[] = [];
+  if (occasion !== "ANY") activeFilters.push({ label: occasion.charAt(0) + occasion.slice(1).toLowerCase().replace("_", " "), clear: () => setOccasion("ANY") });
+  if (complexity !== "ANY") activeFilters.push({ label: complexity.charAt(0) + complexity.slice(1).toLowerCase(), clear: () => setComplexity("ANY") });
+  if (cuisine) activeFilters.push({ label: cuisine, clear: () => setCuisine("") });
+  if (season) activeFilters.push({ label: season.charAt(0) + season.slice(1).toLowerCase(), clear: () => setSeason("") });
+  if (selectedTechniques.length > 0) activeFilters.push({ label: `${selectedTechniques.length} technique${selectedTechniques.length > 1 ? "s" : ""}`, clear: () => setSelectedTechniques([]) });
+  if (mustUse) activeFilters.push({ label: `Must use: ${mustUse}`, clear: () => setMustUse("") });
+  if (tagsInclude) activeFilters.push({ label: `Tags: ${tagsInclude}`, clear: () => setTagsInclude("") });
+  if (tagsExclude) activeFilters.push({ label: `Exclude: ${tagsExclude}`, clear: () => setTagsExclude("") });
+
+  function clearAllFilters() {
+    setOccasion("ANY");
+    setComplexity("ANY");
+    setCuisine("");
+    setSeason("");
+    setSelectedTechniques([]);
+    setMustUse("");
+    setTagsInclude("");
+    setTagsExclude("");
   }
 
   return (
     <>
+      {/* ── Unified filter + action card ─────────────────────── */}
       <div className="card">
         <h3>What are you looking for?</h3>
         <div className="row">
@@ -465,7 +398,7 @@ export default function SuggestClient() {
             </select>
           </label>
         </div>
-        
+
         <div className="row" style={{marginTop:10}}>
           <label>Cuisine <input value={cuisine} onChange={e=>setCuisine(e.target.value)} placeholder="e.g. Mexican, Italian" style={{minWidth:160}}/></label>
           <label>Season
@@ -537,33 +470,13 @@ export default function SuggestClient() {
           </div>
         </details>
 
-        <div style={{marginTop:12}}>
-          <button onClick={run} disabled={loading} style={{padding:"10px 24px", fontWeight:500}}>
-            {loading ? "Finding recipes..." : "🍳 Find Recipes"}
+        {/* ── Action buttons ── */}
+        <div style={{marginTop:16, borderTop:"1px solid var(--border)", paddingTop:16, display:"flex", flexWrap:"wrap", gap:12, alignItems:"center"}}>
+          <button onClick={run} disabled={loading} style={{padding:"10px 24px", fontWeight:600}}>
+            {loading ? "Finding..." : "Find Recipes"}
           </button>
-          <p style={{margin:"6px 0 0", fontSize:12, opacity:0.5}}>
-            Searches and ranks recipes already saved in your library. No AI — instant.
-          </p>
-        </div>
-      </div>
-
-      <div style={{display:"flex", alignItems:"center", gap:12, margin:"4px 0", opacity:0.35}}>
-        <div style={{flex:1, height:1, background:"currentColor"}} />
-        <span style={{fontSize:13, fontWeight:500}}>or</span>
-        <div style={{flex:1, height:1, background:"currentColor"}} />
-      </div>
-
-      {/* ── Generate new recipes via Claude ─────────────────────── */}
-      <div className="card" style={{marginTop:16}}>
-        <h3 style={{margin:"0 0 4px 0"}}>✨ Generate new recipes with AI</h3>
-        <p style={{margin:"0 0 12px 0", opacity:0.65, fontSize:14}}>
-          These recipes <strong>don&apos;t exist in your library yet</strong> — Claude invents them based on your current inventory.
-          Save the ones you like and they&apos;ll appear in Find Recipes going forward.
-          Uses your filters above. Costs a small amount of API credit per generation.
-        </p>
-        <div className="row" style={{alignItems:"center", flexWrap:"wrap", gap:8}}>
+          <span style={{fontSize:13, opacity:0.35, fontWeight:500}}>or</span>
           <div style={{display:"flex", alignItems:"center", gap:6}}>
-            <span style={{fontSize:13, opacity:0.65}}>Count:</span>
             {[1, 2, 3].map(n => (
               <button
                 key={n}
@@ -573,35 +486,56 @@ export default function SuggestClient() {
                   padding:"4px 10px", fontSize:13, minWidth:32,
                   background: generateCount === n ? "rgba(100,150,255,0.2)" : "transparent",
                   border: `1px solid ${generateCount === n ? "rgba(100,150,255,0.5)" : "rgba(127,127,127,0.25)"}`,
-                  fontWeight: generateCount === n ? 600 : 400,
+                  fontWeight: generateCount === n ? 600 : 400
                 }}
               >
                 {n}
               </button>
             ))}
+            <button
+              onClick={generate}
+              disabled={generating}
+              style={{padding:"10px 24px", fontWeight:500, background:"rgba(100,150,255,0.15)", border:"1px solid rgba(100,150,255,0.4)", display:"flex", alignItems:"center", gap:8}}
+            >
+              {generating && <span className="spinner" style={{width:16,height:16,borderWidth:2,flexShrink:0}} />}
+              {generating ? "Generating..." : "Generate New with AI"}
+            </button>
           </div>
-          <button
-            onClick={generate}
-            disabled={generating}
-            style={{padding:"10px 24px", fontWeight:500, background:"rgba(100,150,255,0.15)", border:"1px solid rgba(100,150,255,0.4)", display:"flex", alignItems:"center", gap:8}}
-          >
-            {generating && <span className="spinner" style={{width:16,height:16,borderWidth:2,flexShrink:0}} />}
-            {generating ? "Generating..." : "✨ Generate Recipe Ideas"}
-          </button>
           {generatedRecipes.length > 0 && !generating && (
             <button
               onClick={() => { setGeneratedRecipes([]); setSavedIdx(new Set()); setSavedRecipeIds({}); }}
-              style={{padding:"10px 14px", opacity:0.6}}
+              style={{padding:"6px 14px", opacity:0.6, fontSize:13}}
             >
-              Clear
+              Clear generated
             </button>
           )}
         </div>
+        <p style={{margin:"6px 0 0", fontSize:12, opacity:0.5}}>
+          &ldquo;Find&rdquo; ranks your saved recipes. &ldquo;Generate&rdquo; invents new ones from your inventory (uses AI credits).
+        </p>
         {generateError && (
           <p style={{marginTop:10, color:"#f87171", fontSize:14}}>{generateError}</p>
         )}
       </div>
 
+      {/* ── Active filter chips ─────────────────────── */}
+      {activeFilters.length > 0 && (
+        <div style={{display:"flex", flexWrap:"wrap", gap:6, margin:"8px 0"}}>
+          {activeFilters.map((f, i) => (
+            <span key={i} className="filter-chip">
+              {f.label}
+              <button onClick={f.clear} aria-label={`Clear ${f.label} filter`} className="filter-chip-x">&times;</button>
+            </span>
+          ))}
+          {activeFilters.length > 1 && (
+            <button onClick={clearAllFilters} className="filter-chip-clear">
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Generated recipe results ─────────────────────── */}
       {generatedRecipes.length > 0 && (
         <div ref={generateResultsRef}>
           <p style={{margin:"16px 0 8px", opacity:0.7}}>
@@ -621,30 +555,29 @@ export default function SuggestClient() {
                     {r.techniques?.map(t => <span key={t} className="tag tech">{t}</span>)}
                   </div>
                 </div>
-                <button
-                  onClick={() => saveGenerated(r, idx)}
-                  disabled={savingIdx.has(idx) || savedIdx.has(idx)}
-                  style={{
-                    padding:"6px 14px",
-                    fontSize:13,
-                    background: savedIdx.has(idx) ? "rgba(100,200,100,0.2)" : undefined,
-                    border: savedIdx.has(idx) ? "1px solid rgba(100,200,100,0.4)" : undefined
-                  }}
-                >
-                  {savingIdx.has(idx) ? "Saving..." : savedIdx.has(idx) ? "✓ Saved" : "Save to My Recipes"}
-                </button>
+                <div style={{display:"flex", gap:6, alignItems:"center"}}>
+                  {savedIdx.has(idx) && savedRecipeIds[idx] && (
+                    <button
+                      onClick={() => openLogForm(savedRecipeIds[idx], r.title, r.ingredients.map(i => i.name))}
+                      style={{padding:"6px 12px", fontSize:13}}
+                    >
+                      I Made This
+                    </button>
+                  )}
+                  <button
+                    onClick={() => saveGenerated(r, idx)}
+                    disabled={savingIdx.has(idx) || savedIdx.has(idx)}
+                    style={{
+                      padding:"6px 14px",
+                      fontSize:13,
+                      background: savedIdx.has(idx) ? "rgba(100,200,100,0.2)" : undefined,
+                      border: savedIdx.has(idx) ? "1px solid rgba(100,200,100,0.4)" : undefined
+                    }}
+                  >
+                    {savingIdx.has(idx) ? "Saving..." : savedIdx.has(idx) ? "Saved" : "Save to My Recipes"}
+                  </button>
+                </div>
               </div>
-
-              {savedIdx.has(idx) && savedRecipeIds[idx] && (
-                <button
-                  onClick={() => openLogForm(savedRecipeIds[idx], r.title, r.ingredients.map(i => i.name))}
-                  style={{padding:"6px 12px", fontSize:13, marginTop:6}}
-                >
-                  I Made This
-                </button>
-              )}
-
-              {logForm?.recipeId === savedRecipeIds[idx] && renderLogForm()}
 
               {r.reasoning && (
                 <p style={{margin:"8px 0 0", fontSize:13, opacity:0.65, fontStyle:"italic"}}>
@@ -682,41 +615,25 @@ export default function SuggestClient() {
         </div>
       )}
 
-      {mpToast && (
-        <div className="card" style={{background:"rgba(100,200,100,0.15)", marginTop:16, position:"sticky", top:60, zIndex:50}}>
-          📅 {mpToast}
-        </div>
-      )}
-
-      {saveToast && (
-        <div className="card" style={{background:"rgba(100,200,100,0.15)", marginTop:16, position:"sticky", top:60, zIndex:50}}>
-          ✓ {saveToast}
-        </div>
-      )}
-
-      {logSuccess && (
-        <div className="card" style={{background:"rgba(100,200,100,0.15)", marginTop:16}}>
-          Logged &quot;{logSuccess}&quot; to your cook history!
-        </div>
-      )}
-
+      {/* ── Empty state ─────────────────────── */}
       {hasSearched && !loading && results.length === 0 && (
         <div className="empty-state" style={{opacity:1}}>
           <div className="empty-state-icon">📭</div>
           <h3>No recipes in your library yet</h3>
           <p style={{opacity:0.7}}>
-            Use <strong>Generate Recipe Ideas</strong> below to create some, then save the ones you like.
+            Use <strong>Generate New with AI</strong> above to create some, then save the ones you like.
             Once saved, they&apos;ll appear here ranked by how well they match your inventory.
           </p>
           <p style={{opacity:0.5, fontSize:13, marginTop:8}}>
-            The <strong>I Made This</strong> button appears on each result card here — that&apos;s where inventory deductions happen.
+            The <strong>I Made This</strong> button appears on each result card — that&apos;s where inventory deductions happen.
           </p>
         </div>
       )}
 
+      {/* ── Urgent items banner ─────────────────────── */}
       {urgentItems.length > 0 && (
         <div className="card" style={{background:"rgba(255,180,0,0.08)", borderLeft:"3px solid #c90", marginTop:12}}>
-          <strong style={{fontSize:13}}>⚠ Use soon ({urgentItems.length} item{urgentItems.length !== 1 ? "s" : ""})</strong>
+          <strong style={{fontSize:13}}>Use soon ({urgentItems.length} item{urgentItems.length !== 1 ? "s" : ""})</strong>
           <div style={{marginTop:6, display:"flex", flexWrap:"wrap", gap:"4px 12px"}}>
             {urgentItems.map(i => (
               <span key={i.name} style={{fontSize:12, opacity:0.85}}>
@@ -731,6 +648,7 @@ export default function SuggestClient() {
         </div>
       )}
 
+      {/* ── Search results ─────────────────────── */}
       {results.length > 0 && (
         <p style={{margin:"16px 0 8px", opacity:0.7}}>
           Found {results.length} recipes ranked by fit:
@@ -744,29 +662,25 @@ export default function SuggestClient() {
               <h3 style={{margin:"0 0 4px 0"}}>
                 {idx === 0 && "🏆 "}{r.title}
               </h3>
-              <div style={{marginTop:4, display:"flex", flexWrap:"wrap", gap:4}}>
+              <div style={{marginTop:4, display:"flex", flexWrap:"wrap", gap:4, alignItems:"center"}}>
                 {r.why.map(w => (
                   <span key={w} style={{fontSize:"0.72em", padding:"2px 6px", borderRadius:4, background:"rgba(127,127,127,0.1)", color:"inherit", opacity:0.75}}>{w}</span>
                 ))}
+                {r.cuisine && <span className="tag">{r.cuisine}</span>}
+                {r.complexity && <span className="tag">{r.complexity.toLowerCase()}</span>}
+                {r.techniques?.map(t => <span key={t} className="tag tech">{t}</span>)}
+                {r.costPerServing != null && r.costPerServing > 0 && (
+                  <span
+                    className="tag cost"
+                    title={r.costCoverage ? `Based on ${r.costCoverage.matched} of ${r.costCoverage.total} priced ingredients` : undefined}
+                  >
+                    ~${(r.costPerServing / 100).toFixed(2)}/serving
+                    {r.costCoverage && r.costCoverage.matched < r.costCoverage.total && (
+                      <span style={{opacity:0.6}}> ({r.costCoverage.matched}/{r.costCoverage.total} priced)</span>
+                    )}
+                  </span>
+                )}
               </div>
-              {(r.cuisine || r.complexity || r.techniques?.length || (r.costPerServing != null && r.costPerServing > 0)) && (
-                <div style={{marginTop:4}}>
-                  {r.cuisine && <span className="tag">{r.cuisine}</span>}
-                  {r.complexity && <span className="tag">{r.complexity.toLowerCase()}</span>}
-                  {r.techniques?.map(t => <span key={t} className="tag tech">{t}</span>)}
-                  {r.costPerServing != null && r.costPerServing > 0 && (
-                    <span
-                      className="tag cost"
-                      title={r.costCoverage ? `Based on ${r.costCoverage.matched} of ${r.costCoverage.total} priced ingredients` : undefined}
-                    >
-                      ~${(r.costPerServing / 100).toFixed(2)}/serving
-                      {r.costCoverage && r.costCoverage.matched < r.costCoverage.total && (
-                        <span style={{opacity:0.6}}> ({r.costCoverage.matched}/{r.costCoverage.total} priced)</span>
-                      )}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
             <div style={{display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end"}}>
               <button
@@ -801,50 +715,166 @@ export default function SuggestClient() {
             </div>
           )}
 
-          {logForm?.recipeId === r.recipeId && renderLogForm()}
-
-          <div className="row" style={{marginTop:10}}>
-            <div style={{flex:1, minWidth:260}}>
-              <h4 style={{margin:"0 0 6px 0", fontSize:14}}>✓ Have</h4>
-              {r.have.length > 0 ? (
-                <ul style={{margin:0, paddingLeft:20}}>{r.have.map((x, i) => <li key={i}>{x}</li>)}</ul>
-              ) : (
-                <small className="muted">—</small>
-              )}
+          <div style={{marginTop:8, fontSize:13, lineHeight:1.7}}>
+            <div>
+              <span style={{fontWeight:600, fontSize:11, textTransform:"uppercase", letterSpacing:"0.03em", opacity:0.5}}>Have </span>
+              {r.have.length > 0
+                ? r.have.join(", ")
+                : <span style={{opacity:0.5}}>&mdash;</span>}
             </div>
-            <div style={{flex:1, minWidth:260}}>
-              <h4 style={{margin:"0 0 6px 0", fontSize:14}}>✗ Missing</h4>
-              {r.missing.length ? (
-                <ul style={{margin:0, paddingLeft:20}}>
-                  {r.missing.map((x, i) => (
-                    <li key={i}>
-                      {x}
-                      {r.swaps[x]?.length ? <small className="muted"> (swaps: {r.swaps[x].join(", ")})</small> : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <small className="muted">Nothing required missing!</small>
-              )}
-            </div>
+            {r.missing.length > 0 ? (
+              <div>
+                <span style={{fontWeight:600, fontSize:11, textTransform:"uppercase", letterSpacing:"0.03em", opacity:0.5}}>Missing </span>
+                {r.missing.map((x, i) => (
+                  <span key={i}>
+                    {i > 0 && ", "}
+                    {x}
+                    {r.swaps[x]?.length && (
+                      <span style={{opacity:0.5}} title={`Swaps: ${r.swaps[x].join(", ")}`}>
+                        {` \u2192 ${r.swaps[x][0]}`}{r.swaps[x].length > 1 ? "\u2026" : ""}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div style={{opacity:0.7}}>Have everything needed!</div>
+            )}
           </div>
         </div>
       ))}
 
+      {/* ── Cook log modal ─────────────────────── */}
+      {logForm && (
+        <Modal
+          open={true}
+          onClose={closeLogForm}
+          title={`Log Cook \u2014 ${logForm.title}`}
+          maxWidth={520}
+          actions={
+            <>
+              <button onClick={closeLogForm} style={{color:"#888"}}>
+                Cancel
+              </button>
+              <button onClick={submitLog} disabled={logSaving} style={{padding:"6px 16px"}}>
+                {logSaving ? "Saving..." : "Save"}
+              </button>
+            </>
+          }
+        >
+          <div style={{maxHeight:"60vh", overflowY:"auto"}}>
+            <div style={{marginBottom:10}}>
+              <label style={{display:"block", marginBottom:4, fontSize:13}}>Rating</label>
+              <div style={{display:"flex", gap:4}}>
+                {[1,2,3,4,5].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setLogRating(n)}
+                    style={{
+                      padding:"4px 10px",
+                      background: n <= logRating ? "rgba(255,180,0,0.3)" : "transparent",
+                      border: "1px solid rgba(127,127,127,0.3)",
+                      borderRadius: 4,
+                      cursor: "pointer"
+                    }}
+                  >
+                    {"★"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{marginBottom:10}}>
+              <label style={{display:"block", marginBottom:4, fontSize:13}}>Notes (optional)</label>
+              <textarea
+                value={logNotes}
+                onChange={e => setLogNotes(e.target.value)}
+                placeholder="How did it turn out?"
+                rows={2}
+                style={{width:"100%", resize:"vertical"}}
+              />
+            </div>
+            <div style={{marginBottom:10}}>
+              <label style={{display:"flex", alignItems:"center", gap:6, fontSize:13}}>
+                <input
+                  type="checkbox"
+                  checked={logWouldRepeat}
+                  onChange={e => setLogWouldRepeat(e.target.checked)}
+                />
+                Would make again
+              </label>
+            </div>
+            <div>
+              <p style={{margin:"0 0 6px 0", fontSize:13, fontWeight:500}}>Update inventory</p>
+              {logLoadingInventory ? (
+                <p style={{fontSize:12, opacity:0.5}}>Loading inventory...</p>
+              ) : logMatches.length === 0 ? (
+                <p style={{fontSize:12, opacity:0.5}}>No inventory items matched this recipe.</p>
+              ) : (
+                <div style={{display:"flex", flexDirection:"column", gap:6}}>
+                  {logMatches.map((m, i) => (
+                    <div key={m.itemId} style={{display:"flex", flexWrap:"wrap", alignItems:"center", gap:6, fontSize:13}}>
+                      <span style={{flex:"1 1 120px", minWidth:100}}>{m.itemName}</span>
+                      <span style={{opacity:0.5, fontSize:12, whiteSpace:"nowrap"}}>({m.currentQty})</span>
+                      <select
+                        value={m.action}
+                        onChange={e => updateLogMatch(i, { action: e.target.value as LogInventoryMatch["action"] })}
+                        style={{fontSize:12}}
+                      >
+                        <option value="skip">Keep as is</option>
+                        <option value="remove">Used it all — remove</option>
+                        <option value="update">Update quantity</option>
+                      </select>
+                      {m.action === "update" && (
+                        <input
+                          value={m.newQty}
+                          onChange={e => updateLogMatch(i, { newQty: e.target.value })}
+                          placeholder="new qty..."
+                          style={{width:110, fontSize:12}}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Toast notification ─────────────────────── */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={clearToast} />}
+
       <style jsx>{`
-        .tag {
-          display: inline-block;
-          padding: 2px 8px;
-          margin-right: 6px;
+        .filter-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 3px 10px;
           border-radius: 12px;
           font-size: 12px;
-          background: rgba(127,127,127,0.15);
+          background: rgba(100,150,255,0.12);
+          border: 1px solid rgba(100,150,255,0.25);
         }
-        .tag.tech {
-          background: rgba(100,150,255,0.2);
+        .filter-chip-x {
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 0;
+          font-size: 14px;
+          line-height: 1;
+          opacity: 0.5;
+          color: inherit;
         }
-        .tag.cost {
-          background: rgba(100,200,100,0.2);
+        .filter-chip-x:hover { opacity: 1; }
+        .filter-chip-clear {
+          font-size: 12px;
+          opacity: 0.5;
+          padding: 3px 8px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          text-decoration: underline;
+          color: inherit;
         }
       `}</style>
     </>

@@ -78,9 +78,13 @@ export default function HistoryClient() {
 
   if (loading) {
     return (
-      <div className="loading-state">
-        <span className="spinner large"></span>
-        <span>Loading history...</span>
+      <div>
+        {[1, 2, 3, 4, 5].map(n => (
+          <div key={n} className="skeleton-card">
+            <div className="skeleton skeleton-line medium" />
+            <div className="skeleton skeleton-line short" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -143,6 +147,7 @@ export default function HistoryClient() {
             <div className="empty-state-icon">📝</div>
             <h3>No cook history yet</h3>
             <p>Use &quot;I Made This&quot; on suggestions to log your first cook!</p>
+            <a href="/suggest" className="empty-state-action">Get suggestions</a>
           </div>
         ) : (
           <div className="empty-state">
@@ -179,16 +184,6 @@ export default function HistoryClient() {
           ))}
         </div>
       )}
-
-      <style jsx>{`
-        .tag {
-          display: inline-block;
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 12px;
-          background: rgba(127,127,127,0.15);
-        }
-      `}</style>
     </>
   );
 }
